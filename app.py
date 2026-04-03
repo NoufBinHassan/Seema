@@ -7,8 +7,29 @@ import plotly.graph_objects as go
 from io import BytesIO
 import base64
 import math
+import os
 
-import numpy as np
+# ─────────────────────────────────────────────────────────────
+# دالة مساعدة لتحويل الصورة إلى base64
+# ─────────────────────────────────────────────────────────────
+def image_to_base64(path: str) -> str:
+    """تحوّل ملف صورة إلى سلسلة base64 لاستخدامها مباشرة في HTML."""
+    if not os.path.exists(path):
+        return ""
+    with open(path, "rb") as f:
+        data = f.read()
+    ext = path.rsplit(".", 1)[-1].lower()
+    mime = "image/svg+xml" if ext == "svg" else f"image/{ext}"
+    return f"data:{mime};base64,{base64.b64encode(data).decode()}"
+
+# ─────────────────────────────────────────────────────────────
+# مسارات الشعارات  (ضع الملفات بجانب app.py)
+# ─────────────────────────────────────────────────────────────
+SEEMA_LOGO_PATH = os.path.join(os.path.dirname(__file__), "seema_logo.png")
+GASTAT_LOGO_PATH = os.path.join(os.path.dirname(__file__), "gastat_logo.png")
+
+SEEMA_LOGO_B64  = image_to_base64(SEEMA_LOGO_PATH)
+GASTAT_LOGO_B64 = image_to_base64(GASTAT_LOGO_PATH)
 
 # ── إحداثيات المدن ──
 CITY_COORDS = {
@@ -40,8 +61,11 @@ CITY_DISTRICTS = {
     "حائل":           ["الصالحية","الغزالة","السلام","النزهة","الحمراء"],
     "الخبر":          ["العقربية","الثقبة","الراكة","الكورنيش","الصفا"],
 }
-REVIEW_TEXTS = ["السائق ممتاز","خدمة رائعة","في الوقت","سائق محترم","شكراً","وصل سليم","تأخر قليلاً"]
+REVIEW_TEXTS = ["السائق ممتاز","خدمة رائعة","في الوقت","سائق محترف","شكراً","وصل سليم","تأخر قليلاً"]
 
+# ─────────────────────────────────────────────────────────────
+# دوال توليد البيانات التجريبية
+# ─────────────────────────────────────────────────────────────
 def haversine_distance(lat1, lon1, lat2, lon2):
     R = 6371
     phi1, phi2 = np.radians(lat1), np.radians(lat2)
@@ -70,12 +94,10 @@ def generate_flight_data(account_ids, city_map=None, suspicious_ids=None, seed=4
             duration = int(dist_km / 800 * 60 + 45)
             arr_time = dep_time + timedelta(minutes=duration)
             rows.append({"account_id":acc_id,"flight_date":dep_time.strftime("%Y-%m-%d"),"departure_time":dep_time.strftime("%H:%M"),"arrival_time":arr_time.strftime("%H:%M"),"departure_city":home_city,"arrival_city":arr_city,"duration_min":duration,"distance_km":round(dist_km,1),"airport_code":CITY_AIRPORTS.get(home_city,"UNK")})
-    import pandas as pd
     return pd.DataFrame(rows) if rows else pd.DataFrame(columns=["account_id","flight_date","departure_time","arrival_time","departure_city","arrival_city","duration_min","distance_km","airport_code"])
 
 def generate_review_data(account_ids, city_map=None, suspicious_ids=None, seed=42):
     from datetime import datetime, timedelta
-    import pandas as pd
     rng = np.random.default_rng(seed)
     cities = list(CITY_COORDS.keys())
     base_date = datetime(2024, 1, 1, 8, 0)
@@ -105,7 +127,6 @@ def generate_review_data(account_ids, city_map=None, suspicious_ids=None, seed=4
 
 def generate_gps_traces(account_ids, city_map=None, suspicious_ids=None, seed=42):
     from datetime import datetime, timedelta
-    import pandas as pd
     rng = np.random.default_rng(seed)
     cities = list(CITY_COORDS.keys())
     base_date = datetime(2024, 3, 1, 8, 0)
@@ -132,20 +153,419 @@ def generate_gps_traces(account_ids, city_map=None, suspicious_ids=None, seed=42
             curr_lat, curr_lon = new_lat, new_lon
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
-# =========================================
+
+# ─────────────────────────────────────────────────────────────
 # إعداد الصفحة
-# =========================================
+# ─────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="سِيماء — مرصد السلوك الرقمي",
     page_icon="📊",
     layout="wide"
 )
-st.title("سِيماء — مرصد السلوك الرقمي")
-st.caption("مرصد ذكي لكشف التستر الرقمي في اقتصاد المنصات عبر تحليل المصادر غير التقليدية")
 
-# =========================================
+# ─────────────────────────────────────────────────────────────
+# CSS عام — RTL + هوية بصرية موحدة + طباعة
+# ─────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+/* ── استيراد الخط ── */
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap');
+
+/* ── قاعدة RTL ── */
+html, body, [class*="css"], .stApp {
+    direction: rtl !important;
+    font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif !important;
+}
+
+/* ── ترتيب العناصر من اليمين ── */
+.stColumns, .element-container, .stMarkdown,
+.stDataFrame, .stTable, .stMetric,
+.stAlert, .stTabs, .stButton {
+    direction: rtl !important;
+    text-align: right !important;
+}
+
+/* ── الشريط الجانبي ── */
+[data-testid="stSidebar"] {
+    direction: rtl !important;
+    text-align: right !important;
+    background: linear-gradient(180deg, #0F2B4A 0%, #1A3F6B 100%) !important;
+}
+[data-testid="stSidebar"] * {
+    color: #E2EAF4 !important;
+    font-family: 'Cairo', sans-serif !important;
+}
+[data-testid="stSidebar"] .stButton > button {
+    background: #1E9ED4 !important;
+    color: white !important;
+    border-radius: 8px !important;
+    width: 100% !important;
+}
+
+/* ── بطاقة الهيدر ── */
+.header-card {
+    background: linear-gradient(135deg, #0F2B4A 0%, #1A3F6B 60%, #0D4A78 100%);
+    border-radius: 16px;
+    padding: 28px 36px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-direction: row-reverse;
+    gap: 20px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+}
+.header-card .header-text {
+    direction: rtl;
+    flex: 1;
+}
+.header-card h1 {
+    color: #FFFFFF !important;
+    font-size: 2rem !important;
+    font-weight: 800 !important;
+    margin: 0 !important;
+    line-height: 1.3 !important;
+}
+.header-card p {
+    color: #93C5FD !important;
+    font-size: 0.95rem !important;
+    margin: 8px 0 0 0 !important;
+}
+      .header-logos {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-direction: row;
+}
+.header-logos .seema-logo {
+    height: 110px;
+    object-fit: contain;
+    filter: brightness(1.1);
+}
+.header-logos .gastat-logo {
+    height: 72px;
+    object-fit: contain;
+    filter: brightness(1.1);
+}
+            
+.header-logos .divider-logo {
+    width: 1px;
+    height: 56px;
+    background: rgba(255,255,255,0.25);
+}
+
+/* ── بطاقات المقاييس ── */
+[data-testid="metric-container"] {
+    background: #F8FAFF !important;
+    border: 1px solid #DBEAFE !important;
+    border-radius: 12px !important;
+    padding: 16px 20px !important;
+    text-align: right !important;
+    direction: rtl !important;
+    box-shadow: 0 2px 8px rgba(30,58,138,0.06) !important;
+    transition: box-shadow 0.2s ease !important;
+}
+[data-testid="metric-container"]:hover {
+    box-shadow: 0 4px 16px rgba(30,58,138,0.12) !important;
+}
+[data-testid="metric-container"] label {
+    direction: rtl !important;
+    text-align: right !important;
+    font-weight: 600 !important;
+    color: #374151 !important;
+}
+[data-testid="metric-container"] [data-testid="stMetricValue"] {
+    direction: rtl !important;
+    font-weight: 700 !important;
+    font-size: 1.7rem !important;
+    color: #1E3A8A !important;
+}
+
+/* ── التبويبات ── */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 4px !important;
+    direction: rtl !important;
+    border-bottom: 2px solid #DBEAFE !important;
+}
+.stTabs [data-baseweb="tab"] {
+    direction: rtl !important;
+    font-family: 'Cairo', sans-serif !important;
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    color: #374151 !important;
+    border-radius: 8px 8px 0 0 !important;
+    padding: 10px 18px !important;
+    background: transparent !important;
+    border: none !important;
+}
+.stTabs [aria-selected="true"] {
+    background: #1E3A8A !important;
+    color: white !important;
+}
+
+/* ── توضيح الرسم البياني ── */
+.chart-caption {
+    background: #EFF6FF;
+    border-right: 4px solid #3B82F6;
+    border-radius: 0 8px 8px 0;
+    padding: 10px 16px;
+    margin: -8px 0 20px 0;
+    color: #1E40AF;
+    font-size: 0.85rem;
+    direction: rtl;
+    text-align: right;
+}
+
+/* ── بطاقة التنبيه المخصصة ── */
+.alert-normal {
+    background: #F0FDF4;
+    border: 1px solid #86EFAC;
+    border-right: 4px solid #22C55E;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 12px 0;
+    direction: rtl;
+    text-align: right;
+    color: #166534;
+    font-size: 0.9rem;
+}
+.alert-warning {
+    background: #FFFBEB;
+    border: 1px solid #FCD34D;
+    border-right: 4px solid #F59E0B;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 12px 0;
+    direction: rtl;
+    text-align: right;
+    color: #92400E;
+    font-size: 0.9rem;
+}
+.alert-danger {
+    background: #FEF2F2;
+    border: 1px solid #FCA5A5;
+    border-right: 4px solid #EF4444;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 12px 0;
+    direction: rtl;
+    text-align: right;
+    color: #991B1B;
+    font-size: 0.9rem;
+}
+.alert-info {
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    border-right: 4px solid #3B82F6;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 12px 0;
+    direction: rtl;
+    text-align: right;
+    color: #1E40AF;
+    font-size: 0.9rem;
+}
+
+/* ── بطاقة المؤشر ── */
+.kpi-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 12px rgba(30,58,138,0.08);
+    border: 1px solid #DBEAFE;
+    text-align: right;
+    direction: rtl;
+    margin-bottom: 16px;
+}
+.kpi-card .kpi-value {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #1E3A8A;
+    line-height: 1.1;
+}
+.kpi-card .kpi-label {
+    font-size: 0.875rem;
+    color: #6B7280;
+    margin-top: 4px;
+}
+
+/* ── الجداول ── */
+.stDataFrame {
+    direction: rtl !important;
+}
+.stDataFrame thead th {
+    background-color: #1E3A8A !important;
+    color: white !important;
+    text-align: right !important;
+    direction: rtl !important;
+    font-family: 'Cairo', sans-serif !important;
+}
+.stDataFrame tbody td {
+    text-align: right !important;
+    direction: rtl !important;
+    font-family: 'Cairo', sans-serif !important;
+}
+
+/* ── عناوين الأقسام ── */
+h1, h2, h3, h4, h5, h6 {
+    direction: rtl !important;
+    text-align: right !important;
+    font-family: 'Cairo', sans-serif !important;
+    color: #1E3A8A !important;
+}
+
+/* ── الأزرار ── */
+.stButton > button {
+    font-family: 'Cairo', sans-serif !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    transition: all 0.2s ease !important;
+}
+.stButton > button:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(30,58,138,0.2) !important;
+}
+
+/* ── الفاصل ── */
+hr {
+    border-color: #E0E9F5 !important;
+    margin: 24px 0 !important;
+}
+
+/* ══════════════════════════════════════════
+   طباعة نظيفة واحترافية
+══════════════════════════════════════════ */
+@media print {
+    @page {
+        size: A4 portrait;
+        margin: 18mm 15mm 18mm 15mm;
+    }
+
+    /* إخفاء عناصر غير مطلوبة */
+    [data-testid="stSidebar"],
+    [data-testid="stToolbar"],
+    .stButton,
+    .stFileUploader,
+    .stCheckbox,
+    .stDownloadButton,
+    header, footer,
+    .stTabs [data-baseweb="tab-list"],
+    [data-testid="stDecoration"] {
+        display: none !important;
+    }
+
+    /* إعادة ضبط الخلفيات */
+    body, .stApp, .main {
+        background: white !important;
+        color: #111 !important;
+    }
+
+    /* هيدر الطباعة */
+    .print-header {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        flex-direction: row-reverse;
+        border-bottom: 3px solid #1E3A8A;
+        padding-bottom: 14px;
+        margin-bottom: 22px;
+    }
+    .print-header img {
+        height: 64px;
+        object-fit: contain;
+    }
+    .print-header .print-title {
+        text-align: center;
+        flex: 1;
+    }
+    .print-header .print-title h2 {
+        font-size: 1.3rem;
+        color: #1E3A8A !important;
+        margin: 0;
+    }
+    .print-header .print-title p {
+        font-size: 0.8rem;
+        color: #555;
+        margin: 4px 0 0;
+    }
+
+    /* فوتر الطباعة */
+    .print-footer {
+        display: block !important;
+        position: fixed;
+        bottom: 10mm;
+        left: 0; right: 0;
+        text-align: center;
+        font-size: 0.75rem;
+        color: #777;
+        border-top: 1px solid #ddd;
+        padding-top: 6px;
+    }
+
+    /* إظهار توضيحات الرسوم */
+    .chart-caption {
+        border: 1px solid #BFDBFE !important;
+    }
+
+    /* كسر الصفحات بشكل مناسب */
+    .page-break-before { page-break-before: always; }
+    .avoid-break { page-break-inside: avoid; }
+
+    /* حجم النص */
+    p, li, td, th { font-size: 10pt !important; }
+    h3 { font-size: 12pt !important; }
+}
+
+/* هيدر الطباعة مخفي افتراضيًا على الشاشة */
+.print-header, .print-footer { display: none; }
+</style>
+""", unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────
+# هيدر الصفحة الرئيسية مع الشعارين
+# ─────────────────────────────────────────────────────────────
+seema_img_tag  = f'<img src="{SEEMA_LOGO_B64}"  alt="شعار سيماء"  class="seema-logo"  />' if SEEMA_LOGO_B64  else ""
+gastat_img_tag = f'<img src="{GASTAT_LOGO_B64}" alt="شعار الهيئة" class="gastat-logo" />' if GASTAT_LOGO_B64 else ""
+divider_tag    = '<div class="divider-logo"></div>' if (SEEMA_LOGO_B64 and GASTAT_LOGO_B64) else ""
+
+st.markdown(f"""
+<div class="header-card">
+    <div class="header-logos">
+        {seema_img_tag}
+        {divider_tag}
+        {gastat_img_tag}
+    </div>
+    <div class="header-text">
+        <h1>سِيماء — مرصد السلوك الرقمي</h1>
+        <p>مرصد ذكي لكشف التستر الرقمي في اقتصاد المنصات عبر تحليل المصادر غير التقليدية</p>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# هيدر الطباعة (يظهر فقط عند الطباعة)
+st.markdown(f"""
+<div class="print-header">
+    <div>
+        {gastat_img_tag}
+    </div>
+    <div class="print-title">
+        <h2>سِيماء — مرصد السلوك الرقمي</h2>
+        <p>تقرير تحليل التستر الرقمي في اقتصاد المنصات</p>
+    </div>
+    <div>
+        {seema_img_tag}
+    </div>
+</div>
+<div class="print-footer">
+    صدر بواسطة نظام سِيماء | الهيئة العامة للإحصاء | هاكاثون 2025
+</div>
+""", unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────
 # المعايير الرسمية
-# =========================================
+# ─────────────────────────────────────────────────────────────
 BENCHMARKS = {
     "suspicious_ratio": 0.14,
     "max_daily_hours":  14,
@@ -155,9 +575,9 @@ BENCHMARKS = {
     "source": "GASTAT Q3 2024 + هيئة النقل سبتمبر 2024 + Uber Global Report 2023",
 }
 
-# =========================================
+# ─────────────────────────────────────────────────────────────
 # خرائط أسماء الأعمدة
-# =========================================
+# ─────────────────────────────────────────────────────────────
 ACCOUNTS_COL_MAP = {
     "رقم الحساب (Account ID)":                              "account_id",
     "حالة الحساب (Status)":                                  "status",
@@ -177,7 +597,6 @@ ACCOUNTS_COL_MAP = {
     "متوسط وقت الراحة بين الطلبات (Rest Interval - min)":    "rest_interval_min",
     "إجمالي المسافة المقطوعة/يوم (Daily Distance - km)":     "daily_distance_km",
 }
-
 ORDERS_COL_MAP = {
     "معرّف الطلب":        "order_id",
     "رقم الحساب":         "account_id",
@@ -194,7 +613,6 @@ ORDERS_COL_MAP = {
     "المسافة (كم)":       "distance_km",
     "حالة الطلب":         "status",
 }
-
 FINANCIAL_COL_MAP = {
     "رقم الحساب (Account ID)":                   "account_id",
     "عدد مصادر الشحن المختلفة":                   "charge_sources",
@@ -204,7 +622,6 @@ FINANCIAL_COL_MAP = {
     "النمو الشهري في الدخل (%)":                  "monthly_income_growth",
     "عدد تحديثات الحساب البنكي":                  "bank_updates",
 }
-
 FLIGHT_COL_MAP = {
     "رقم الحساب (Account ID)":             "account_id",
     "تاريخ الرحلة (Flight Date)":           "flight_date",
@@ -216,7 +633,6 @@ FLIGHT_COL_MAP = {
     "المسافة (Distance - km)":              "distance_km",
     "رمز المطار (Airport Code)":            "airport_code",
 }
-
 REVIEW_COL_MAP = {
     "review_id":"review_id", "order_id":"order_id", "account_id":"account_id",
     "تاريخ التقييم (Review Date)":"review_date",
@@ -226,7 +642,6 @@ REVIEW_COL_MAP = {
     "التقييم (Rating)":"rating",
     "نص التقييم (Review Text)":"review_text",
 }
-
 GPS_COL_MAP = {
     "gps_id":"gps_id","order_id":"order_id","account_id":"account_id",
     "التاريخ (Date)":"date",
@@ -235,9 +650,10 @@ GPS_COL_MAP = {
     "دقة الإشارة (Accuracy - m)":"accuracy_m",
 }
 
-# =========================================
-# دوال مساعدة
-# =========================================
+
+# ─────────────────────────────────────────────────────────────
+# دوال التحليل
+# ─────────────────────────────────────────────────────────────
 def normalize_score(series):
     if series.max() == series.min():
         return pd.Series([50.0] * len(series), index=series.index)
@@ -285,39 +701,29 @@ def generate_reason(row):
 
 
 def build_internal_scores(df, contamination):
-    # إحداثيات من المدينة
     df["city_lat"] = df["city"].map(lambda c: CITY_COORDS.get(c, (24.0, 45.0))[0])
     df["city_lon"] = df["city"].map(lambda c: CITY_COORDS.get(c, (24.0, 45.0))[1])
     rng = np.random.default_rng(42)
     df["lat"] = df["city_lat"] + rng.uniform(-0.08, 0.08, len(df))
     df["lon"] = df["city_lon"] + rng.uniform(-0.08, 0.08, len(df))
-
-    # Z-Score
     for col in ["daily_hours","continuous_work_hours","accepted_orders","device_count","city_count_per_day"]:
         if col in df.columns:
             df[f"z_{col}"] = compute_zscore(df[col]).round(3)
-
-    # Haversine
     df["dist_from_city_center_km"] = haversine_distance(
         df["lat"].values, df["lon"].values,
         df["city_lat"].values, df["city_lon"].values
     ).round(2)
     df["geo_anomaly_score"] = compute_zscore(df["dist_from_city_center_km"]).abs().round(3)
-
-    # Isolation Forest
     feature_cols = [c for c in [
         "daily_hours","weekly_hours","accepted_orders","cancelled_orders",
         "continuous_work_hours","device_count","city_count_per_day",
         "rest_interval_min","daily_distance_km","logins",
         "acceptance_rate","rejection_rate","geo_anomaly_score",
     ] if c in df.columns]
-
     model = IsolationForest(contamination=contamination, random_state=42)
     df["anomaly"]         = model.fit_predict(df[feature_cols])
     df["model_score_raw"] = -model.decision_function(df[feature_cols])
     df["model_score"]     = normalize_score(df["model_score_raw"])
-
-    # Rule-based — مبني على معايير رسمية
     df["rule_score"] = 0
     if "daily_hours"           in df.columns: df["rule_score"] += (df["daily_hours"]           > 14).astype(int) * 20
     if "continuous_work_hours" in df.columns: df["rule_score"] += (df["continuous_work_hours"] > 10).astype(int) * 20
@@ -325,22 +731,17 @@ def build_internal_scores(df, contamination):
     if "city_count_per_day"    in df.columns: df["rule_score"] += (df["city_count_per_day"]    >  1).astype(int) * 15
     if "accepted_orders"       in df.columns: df["rule_score"] += (df["accepted_orders"]       > 30).astype(int) * 15
     if "logins"                in df.columns: df["rule_score"] += (df["logins"]                > 15).astype(int) * 10
-
-    # Z composite
     z_available = [f"z_{c}" for c in ["daily_hours","continuous_work_hours","device_count"] if f"z_{c}" in df.columns]
     df["z_score_signal"] = normalize_score(df[z_available].abs().mean(axis=1)) if z_available else 50.0
-
     df["internal_suspicion_score"] = (
         0.50 * df["model_score"] +
         0.30 * df["rule_score"]  +
         0.20 * df["z_score_signal"]
     ).round(2)
-
     return df
 
 
 def add_financial_scores(df, fin_df):
-    """يضيف درجة اشتباه مالية لكل حساب."""
     fin = fin_df.copy()
     fin["fin_score"] = 0
     if "charge_sources"        in fin.columns: fin["fin_score"] += (fin["charge_sources"]        >  3).astype(int) * 25
@@ -349,7 +750,6 @@ def add_financial_scores(df, fin_df):
     if "bank_updates"          in fin.columns: fin["fin_score"] += (fin["bank_updates"]          >  3).astype(int) * 15
     if "withdrawal_timing"     in fin.columns:
         fin["fin_score"] += (fin["withdrawal_timing"] == "على مدار 24 ساعة (نشاط مستمر)").astype(int) * 15
-
     df = df.merge(
         fin[["account_id","fin_score","charge_sources","daily_withdrawals",
              "monthly_income_growth","bank_updates","withdrawal_timing"]],
@@ -360,40 +760,29 @@ def add_financial_scores(df, fin_df):
 
 
 def detect_flight_conflicts_v2(accounts_df, orders_df, flight_df):
-    """
-    يكشف: حساب نفّذ طلباً في نفس يوم ووقت رحلته الجوية.
-    المنطق: order_date == flight_date AND start_time خلال فترة الرحلة.
-    """
     if flight_df.empty or orders_df.empty:
         return pd.DataFrame()
-
     conflicts = []
     for acc_id in accounts_df["account_id"].unique():
         acc_flights = flight_df[flight_df["account_id"] == acc_id]
         acc_orders  = orders_df[(orders_df["account_id"] == acc_id) & (orders_df["status"] == "مكتمل")]
         if acc_flights.empty or acc_orders.empty:
             continue
-
         for _, flight in acc_flights.iterrows():
             flight_date = str(flight["flight_date"])[:10]
             dep_time    = str(flight["departure_time"])[:5]
             arr_time    = str(flight["arrival_time"])[:5]
-
-            # طلبات في نفس يوم الرحلة
             same_day_orders = acc_orders[acc_orders["order_date"].astype(str).str[:10] == flight_date]
             if same_day_orders.empty:
                 continue
-
             for _, order in same_day_orders.iterrows():
                 order_start = str(order["start_time"])[:5]
-                # لو وقت الطلب بعد المغادرة → تعارض
                 if order_start >= dep_time:
-                    score = 60
                     conflicts.append({
                         "account_id":     acc_id,
                         "order_id":       order["order_id"],
                         "conflict_type":  "نشاط أثناء سفر مسجّل",
-                        "conflict_score": score,
+                        "conflict_score": 60,
                         "flight_date":    flight_date,
                         "flight_route":   f"{flight['departure_city']} → {flight['arrival_city']}",
                         "departure_time": dep_time,
@@ -405,30 +794,20 @@ def detect_flight_conflicts_v2(accounts_df, orders_df, flight_df):
                             f"{flight['departure_city']} الساعة {dep_time} نفس اليوم"
                         ),
                     })
-
     return pd.DataFrame(conflicts) if conflicts else pd.DataFrame()
 
 
 def detect_review_conflicts_v2(orders_df, review_df):
-    """
-    يكشف: موقع التقييم بعيد عن موقع نهاية الطلب بوقت مستحيل.
-    المنطق: order_id → dropoff_lat/lon → review_lat/lon + وقت التقييم - وقت الانتهاء.
-    """
     if review_df.empty or orders_df.empty:
         return pd.DataFrame()
-    # لو ما في order_id → نرجع فارغ
     if "order_id" not in review_df.columns or "order_id" not in orders_df.columns:
         return pd.DataFrame()
     needed = ["order_id","end_time","dropoff_lat","dropoff_lon","order_date"]
     if not all(c in orders_df.columns for c in needed):
         return pd.DataFrame()
-    merged = review_df.merge(
-        orders_df[needed],
-        on="order_id", how="inner"
-    )
+    merged = review_df.merge(orders_df[needed], on="order_id", how="inner")
     if merged.empty:
         return pd.DataFrame()
-
     conflicts = []
     for _, row in merged.iterrows():
         try:
@@ -443,11 +822,7 @@ def detect_review_conflicts_v2(orders_df, review_df):
                 float(row["dropoff_lat"]), float(row["dropoff_lon"]),
                 float(row["lat"]), float(row["lon"])
             )
-            if gap_min > 0:
-                speed = dist_km / (gap_min / 60)
-            else:
-                speed = 0
-
+            speed = dist_km / (gap_min / 60) if gap_min > 0 else 0
             if speed > 120:
                 conflicts.append({
                     "account_id":          row["account_id"],
@@ -465,18 +840,12 @@ def detect_review_conflicts_v2(orders_df, review_df):
                 })
         except Exception:
             continue
-
     return pd.DataFrame(conflicts) if conflicts else pd.DataFrame()
 
 
 def detect_gps_conflicts_v2(orders_df, gps_df):
-    """
-    يكشف: أول نقطة GPS للطلب بعيدة عن موقع الاستلام بوقت مستحيل.
-    المنطق: order_id → pickup_lat/lon → أول نقطة GPS + الفارق الزمني.
-    """
     if gps_df.empty or orders_df.empty:
         return pd.DataFrame()
-    # لو ما في order_id → نرجع فارغ
     if "order_id" not in gps_df.columns or "order_id" not in orders_df.columns:
         return pd.DataFrame()
     needed = ["order_id","account_id","start_time","order_date","pickup_lat","pickup_lon"]
@@ -484,18 +853,12 @@ def detect_gps_conflicts_v2(orders_df, gps_df):
         return pd.DataFrame()
     if "timestamp" not in gps_df.columns:
         return pd.DataFrame()
-
     conflicts = []
-    # أول نقطة GPS لكل طلب
     first_gps = gps_df.sort_values("timestamp").groupby("order_id").first().reset_index()
-    merged = first_gps.merge(
-        orders_df[needed],
-        on="order_id", how="inner"
-    )
-
+    merged = first_gps.merge(orders_df[needed], on="order_id", how="inner")
     for _, row in merged.iterrows():
         try:
-            gps_time   = pd.to_datetime(f"{row['date']} {row['timestamp']}", errors="coerce")
+            gps_time    = pd.to_datetime(f"{row['date']} {row['timestamp']}", errors="coerce")
             order_start = pd.to_datetime(f"{row['order_date']} {row['start_time']}", errors="coerce")
             if pd.isna(gps_time) or pd.isna(order_start):
                 continue
@@ -506,11 +869,7 @@ def detect_gps_conflicts_v2(orders_df, gps_df):
                 float(row["pickup_lat"]), float(row["pickup_lon"]),
                 float(row["lat"]), float(row["lon"])
             )
-            if gap_sec > 0:
-                speed = dist_km / (gap_sec / 3600)
-            else:
-                speed = 0
-
+            speed = dist_km / (gap_sec / 3600) if gap_sec > 0 else 0
             if speed > 150:
                 conflicts.append({
                     "account_id":    row["account_id"],
@@ -527,14 +886,10 @@ def detect_gps_conflicts_v2(orders_df, gps_df):
                 })
         except Exception:
             continue
-
     return pd.DataFrame(conflicts) if conflicts else pd.DataFrame()
 
 
 def compute_final_scores(df, flight_conflicts, review_conflicts, gps_conflicts):
-    """يدمج كل الدرجات في درجة اشتباه نهائية."""
-
-    # درجات التعارضات الخارجية لكل حساب
     for col, conflicts in [
         ("flight_conflict_score", flight_conflicts),
         ("review_conflict_score", review_conflicts),
@@ -547,20 +902,16 @@ def compute_final_scores(df, flight_conflicts, review_conflicts, gps_conflicts):
         else:
             df[col] = 0
         df[col] = df[col].fillna(0)
-
     df["external_suspicion_score"] = (
         df["flight_conflict_score"] * 0.35 +
         df["review_conflict_score"] * 0.35 +
         df["gps_conflict_score"]    * 0.30
     ).clip(upper=100).round(2)
-
-    # الدرجة النهائية
     df["suspicion_score"] = (
         0.45 * df["internal_suspicion_score"] +
         0.20 * normalize_score(df["fin_score"]) +
         0.35 * df["external_suspicion_score"]
     ).round(2)
-
     df["risk_level"] = pd.cut(
         df["suspicion_score"], bins=[-1, 30, 60, 100],
         labels=["منخفض", "متوسط", "مرتفع"]
@@ -573,54 +924,187 @@ def compute_final_scores(df, flight_conflicts, review_conflicts, gps_conflicts):
     return df
 
 
+# ─────────────────────────────────────────────────────────────
+# دالة إنشاء تقرير PDF — عربي كامل + شعارات
+# ─────────────────────────────────────────────────────────────
 def create_pdf_report(df, total, suspicious, estimated, gap_pct):
     from io import BytesIO
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
     from reportlab.lib.units import cm
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.enums import TA_CENTER
+    from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle,
+                                    Paragraph, Spacer, Image, HRFlowable)
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    import datetime
+    import tempfile
+
+    # ── تجهيز معالجة العربية ──
+    try:
+        import arabic_reshaper
+        from bidi.algorithm import get_display
+        def ar(text):
+            """تحوّل النص العربي ليظهر بشكل صحيح في PDF."""
+            try:
+                reshaped = arabic_reshaper.reshape(str(text))
+                return get_display(reshaped)
+            except Exception:
+                return str(text)
+    except ImportError:
+        def ar(text):
+            return str(text)
+
+    # ── تسجيل خط عربي من نظام Windows ──
+    ARABIC_FONT      = "Helvetica"
+    ARABIC_FONT_BOLD = "Helvetica-Bold"
+    arabic_font_candidates = [
+        "C:/Windows/Fonts/arial.ttf",
+        "C:/Windows/Fonts/tahoma.ttf",
+        os.path.expanduser("~/AppData/Local/Microsoft/Windows/Fonts/Cairo-Regular.ttf"),
+    ]
+    for font_path in arabic_font_candidates:
+        if os.path.exists(font_path):
+            try:
+                pdfmetrics.registerFont(TTFont("ArabicFont", font_path))
+                ARABIC_FONT      = "ArabicFont"
+                ARABIC_FONT_BOLD = "ArabicFont"
+                break
+            except Exception:
+                continue
+
+    # ── ألوان ──
+    COLOR_PRIMARY = colors.HexColor("#1E3A8A")
+    COLOR_LIGHT   = colors.HexColor("#EFF6FF")
+    COLOR_BORDER  = colors.HexColor("#BFDBFE")
+    COLOR_MUTED   = colors.HexColor("#6B7280")
+    COLOR_ROW_ALT = colors.HexColor("#F8FAFC")
+
+    # ── أنماط النص ──
+    title_style = ParagraphStyle(
+        "title", fontSize=16, alignment=TA_CENTER,
+        spaceAfter=6, fontName=ARABIC_FONT_BOLD, textColor=COLOR_PRIMARY
+    )
+    sub_style = ParagraphStyle(
+        "sub", fontSize=10, alignment=TA_CENTER,
+        spaceAfter=4, fontName=ARABIC_FONT, textColor=COLOR_MUTED
+    )
+    heading_style = ParagraphStyle(
+        "heading", fontSize=13, spaceAfter=6, spaceBefore=10,
+        fontName=ARABIC_FONT_BOLD, textColor=COLOR_PRIMARY, alignment=TA_RIGHT
+    )
+    small_style = ParagraphStyle(
+        "small", fontSize=8, alignment=TA_CENTER,
+        fontName=ARABIC_FONT, textColor=COLOR_MUTED
+    )
+
+    # ── دالة تحميل الشعارات بأمان ──
+    def load_logo_for_pdf(path, width_cm, height_cm):
+        if not path or not os.path.exists(path):
+            return None
+        ext = path.rsplit(".", 1)[-1].lower()
+        try:
+            if ext == "svg":
+                try:
+                    import cairosvg
+                    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+                    cairosvg.svg2png(url=path, write_to=tmp.name,
+                                     output_width=int(width_cm * 40))
+                    return Image(tmp.name, width=width_cm*cm, height=height_cm*cm)
+                except Exception:
+                    return None
+            else:
+                return Image(path, width=width_cm*cm, height=height_cm*cm)
+        except Exception:
+            return None
+
+    # ── دالة بناء جدول موحد ──
+    def make_table(data_rows, col_widths):
+        processed = []
+        for row in data_rows:
+            processed.append([ar(c) if isinstance(c, str) else c for c in row])
+        t = Table(processed, colWidths=col_widths, repeatRows=1)
+        t.setStyle(TableStyle([
+            ("BACKGROUND",    (0,0), (-1,0),  COLOR_PRIMARY),
+            ("TEXTCOLOR",     (0,0), (-1,0),  colors.white),
+            ("FONTNAME",      (0,0), (-1,0),  ARABIC_FONT_BOLD),
+            ("FONTNAME",      (0,1), (-1,-1), ARABIC_FONT),
+            ("FONTSIZE",      (0,0), (-1,-1), 9),
+            ("ROWBACKGROUNDS",(0,1), (-1,-1), [colors.white, COLOR_ROW_ALT]),
+            ("GRID",          (0,0), (-1,-1), 0.4, COLOR_BORDER),
+            ("ALIGN",         (0,0), (-1,-1), "CENTER"),
+            ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
+            ("ROWHEIGHT",     (0,0), (-1,-1), 20),
+        ]))
+        return t
 
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4,
                             rightMargin=2*cm, leftMargin=2*cm,
-                            topMargin=2*cm, bottomMargin=2*cm)
-
-    title_style   = ParagraphStyle("title",   fontSize=16, alignment=TA_CENTER, spaceAfter=12, fontName="Helvetica-Bold")
-    heading_style = ParagraphStyle("heading", fontSize=12, spaceAfter=6,        fontName="Helvetica-Bold")
-    body_style    = ParagraphStyle("body",    fontSize=10, spaceAfter=4,        fontName="Helvetica")
-    small_style   = ParagraphStyle("small",   fontSize=8,  alignment=TA_CENTER, fontName="Helvetica-Oblique")
-
+                            topMargin=2.5*cm, bottomMargin=2.5*cm)
     story = []
-    story.append(Paragraph("Seema - Digital Behavior Observatory Report", title_style))
-    story.append(Spacer(1, 0.3*cm))
 
-    story.append(Paragraph("Executive Summary", heading_style))
-    bench_pct = BENCHMARKS["suspicious_ratio"] * 100
-    for label, val in [
-        ("Total Accounts",        total),
-        ("Suspicious Accounts",   suspicious),
-        ("Estimated Real Workers",estimated),
-        ("Statistical Gap",       f"{gap_pct}%"),
-        ("GASTAT Benchmark",      f"{bench_pct}%"),
-    ]:
-        story.append(Paragraph(f"{label}: {val}", body_style))
-    story.append(Spacer(1, 0.3*cm))
+    # ── هيدر الشعارات ──
+    seema_img_elem  = load_logo_for_pdf(SEEMA_LOGO_PATH,  3.0, 2.0)
+    gastat_img_elem = load_logo_for_pdf(GASTAT_LOGO_PATH, 3.5, 2.0)
 
-    story.append(Paragraph("Detection Methodology", heading_style))
-    story.append(Paragraph("Layer 1 - Internal (45%): Isolation Forest + Rule-based + Z-Score.", body_style))
-    story.append(Paragraph("Layer 2 - Financial (20%): Wallet sources, withdrawal timing, income growth, bank updates.", body_style))
-    story.append(Paragraph("Layer 3 - External (35%): Flight tickets + App reviews + GPS traces.", body_style))
-    story.append(Paragraph("Benchmarks: Saudi Transport Authority max 14h/day, GASTAT ~14%, Uber avg 10 orders/day.", body_style))
-    story.append(Spacer(1, 0.3*cm))
+    header_data = [[
+        gastat_img_elem or "",
+        [
+            Paragraph(ar("سيماء — مرصد السلوك الرقمي"), title_style),
+            Paragraph(ar("تقرير تحليل التستر الرقمي في اقتصاد المنصات"), sub_style),
+            Paragraph(ar(f"تاريخ التقرير: {datetime.date.today().strftime('%Y-%m-%d')}"), sub_style),
+        ],
+        seema_img_elem or "",
+    ]]
+    header_table = Table(header_data, colWidths=[4*cm, 9*cm, 4*cm])
+    header_table.setStyle(TableStyle([
+        ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
+        ("ALIGN",         (0,0), (0,0),   "LEFT"),
+        ("ALIGN",         (1,0), (1,0),   "CENTER"),
+        ("ALIGN",         (2,0), (2,0),   "RIGHT"),
+        ("BACKGROUND",    (0,0), (-1,-1), COLOR_LIGHT),
+        ("TOPPADDING",    (0,0), (-1,-1), 12),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 12),
+    ]))
+    story.append(header_table)
+    story.append(HRFlowable(width="100%", thickness=2, color=COLOR_PRIMARY, spaceAfter=14))
 
-    story.append(Paragraph("Top 10 Suspicious Accounts", heading_style))
-    top_df = df[df["final_flag"] == "مشبوه"].sort_values("suspicion_score", ascending=False).head(10)
+    # ── الملخص التنفيذي ──
+    story.append(Paragraph(ar("الملخص التنفيذي"), heading_style))
+    bench_pct    = BENCHMARKS["suspicious_ratio"] * 100
+    gap_official = round(gap_pct - bench_pct, 2)
+    gap_sign     = "+" if gap_official > 0 else ""
+    story.append(make_table([
+        ["المؤشر",                   "القيمة",                     "الدلالة"],
+        ["اجمالي الحسابات المحللة",  str(total),                   "جميع الحسابات المدرجة في النظام"],
+        ["الحسابات المشبوهة",        str(suspicious),              "تجاوزت حد الاشتباه 60 فاعلى"],
+        ["العمالة المقدرة الفعلية",  str(estimated),               "بعد استبعاد الحسابات المشبوهة"],
+        ["نسبة الفجوة المرصودة",     f"{gap_pct}%",                "نسبة الحسابات المشبوهة من الاجمالي"],
+        ["المعدل الرسمي GASTAT",     f"{bench_pct}%",              "Q3 2024"],
+        ["الفجوة عن المرجع الرسمي", f"{gap_sign}{gap_official}%", "موجب = اشتباه اعلى من المعدل الوطني"],
+    ], [5.5*cm, 3.5*cm, 8*cm]))
+    story.append(Spacer(1, 0.4*cm))
 
-    table_data = [["Account ID", "City", "Hours", "Devices", "Internal", "Financial", "External", "Final"]]
+    # ── منهجية الكشف ──
+    story.append(Paragraph(ar("منهجية الكشف - 3 طبقات"), heading_style))
+    story.append(make_table([
+        ["الطبقة",          "الوزن", "المكونات"],
+        ["الطبقة الداخلية", "45%",   "Isolation Forest + قواعد رسمية + Z-Score + Haversine"],
+        ["الطبقة المالية",  "20%",   "مصادر الشحن + توقيتات السحب + النمو الشهري + تحديثات البنك"],
+        ["الطبقة الخارجية","35%",   "تذاكر الطيران + تقييمات التطبيقات + مسارات GPS"],
+    ], [4*cm, 2.5*cm, 10.5*cm]))
+    story.append(Spacer(1, 0.4*cm))
+
+    # ── أعلى 10 حسابات مشبوهة ──
+    story.append(Paragraph(ar("اعلى 10 حسابات مشبوهة"), heading_style))
+    top_df = (df[df["final_flag"] == "مشبوه"]
+              .sort_values("suspicion_score", ascending=False).head(10))
+    top_rows = [["رقم الحساب", "المدينة", "الساعات/يوم", "الاجهزة",
+                 "الداخلية",   "المالية", "الخارجية",    "النهائية"]]
     for _, row in top_df.iterrows():
-        table_data.append([
+        top_rows.append([
             str(row.get("account_id", "-")),
             str(row.get("city", "-")),
             f"{row.get('daily_hours', 0):.1f}",
@@ -630,31 +1114,51 @@ def create_pdf_report(df, total, suspicious, estimated, gap_pct):
             f"{row.get('external_suspicion_score', 0):.1f}",
             f"{row.get('suspicion_score', 0):.1f}",
         ])
+    story.append(make_table(top_rows,
+                            [2.5*cm, 2.5*cm, 2.2*cm, 2*cm,
+                             2.2*cm, 2*cm,   2.2*cm, 2.2*cm]))
+    story.append(Spacer(1, 0.4*cm))
 
-    t = Table(table_data, repeatRows=1)
-    t.setStyle(TableStyle([
-        ("BACKGROUND",    (0,0), (-1,0),  colors.HexColor("#1E3A8A")),
-        ("TEXTCOLOR",     (0,0), (-1,0),  colors.white),
-        ("FONTNAME",      (0,0), (-1,0),  "Helvetica-Bold"),
-        ("FONTSIZE",      (0,0), (-1,-1), 8),
-        ("ROWBACKGROUNDS",(0,1), (-1,-1), [colors.white, colors.HexColor("#F8FAFC")]),
-        ("GRID",          (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E1")),
-        ("ALIGN",         (0,0), (-1,-1), "CENTER"),
-        ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
-        ("ROWHEIGHT",     (0,0), (-1,-1), 18),
-    ]))
-    story.append(t)
-    story.append(Spacer(1, 0.5*cm))
-    story.append(Paragraph("Generated by Seema POC | GASTAT Hackathon 2025", small_style))
+    # ── التوصيات ──
+    story.append(Paragraph(ar("التوصيات التشغيلية"), heading_style))
+    top_city_risk = (
+        df.groupby("city").agg(
+            total=("account_id", "count"),
+            suspicious=("final_flag", lambda x: (x == "مشبوه").sum())
+        ).assign(risk_pct=lambda x: x["suspicious"] / x["total"] * 100)
+        .sort_values("risk_pct", ascending=False)
+    )
+    top_city = top_city_risk.index[0] if len(top_city_risk) > 0 else "-"
+    story.append(make_table([
+        ["#", "التوصية"],
+        ["1", f"مراجعة النشاط في مدينة {top_city} لارتفاع نسبة الاشتباه فيها"],
+        ["2", "الحسابات ذات مصادر شحن اكثر من 3 او سحوبات على مدار 24 ساعة تستحق تدقيقا فوريا"],
+        ["3", "ربط سجل الطلبات بتذاكر الطيران يكشف تعارضات لا ترصدها التحليلات السلوكية وحدها"],
+        ["4", "عدم الاكتفاء بالعد الاداري — الحساب الواحد قد يمثل اكثر من عامل"],
+    ], [1*cm, 16*cm]))
+
+    # ── فوتر ──
+    story.append(Spacer(1, 1*cm))
+    story.append(HRFlowable(width="100%", thickness=1, color=COLOR_BORDER, spaceAfter=8))
+    story.append(Paragraph(
+        ar(f"صدر بواسطة نظام سيماء | الهيئة العامة للاحصاء | هاكاثون 2025 | {datetime.date.today().strftime('%Y-%m-%d')}"),
+        small_style
+    ))
 
     doc.build(story)
     return buf.getvalue()
 
 
-# =========================================
-# Sidebar
-# =========================================
-st.sidebar.header("إعدادات النظام")
+# ─────────────────────────────────────────────────────────────
+# الشريط الجانبي
+# ─────────────────────────────────────────────────────────────
+st.sidebar.markdown("""
+<div style="text-align:center; padding: 12px 0 8px; direction:rtl;">
+    <div style="font-size:1.2rem; font-weight:800; color:#93C5FD;">سِيماء</div>
+    <div style="font-size:0.75rem; color:#93C5FD; opacity:0.8;">مرصد السلوك الرقمي</div>
+</div>
+""", unsafe_allow_html=True)
+
 st.sidebar.markdown("### 📁 رفع البيانات")
 
 uploaded_platform = st.sidebar.file_uploader(
@@ -686,43 +1190,55 @@ if n_uploaded == 0:
 else:
     st.sidebar.success(f"✅ تم رفع {n_uploaded}/4 ملفات")
 
-# =========================================
-# قراءة البيانات
-# =========================================
+# معلومات المعايير في الشريط الجانبي
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📏 المعايير الرسمية")
+st.sidebar.markdown("""
+<div style="direction:rtl; font-size:0.8rem; color:#CBD5E1; line-height:1.8;">
+🕐 الحد الأقصى للعمل اليومي: <b style="color:#FCD34D;">14 ساعة</b><br>
+⛔ العمل المتواصل: <b style="color:#FCD34D;">10 ساعات</b><br>
+📦 متوسط الطلبات: <b style="color:#FCD34D;">10 طلب/يوم</b><br>
+📊 نسبة المشبوهين: <b style="color:#FCD34D;">~14%</b>
+</div>
+""", unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────
+# شاشة الترحيب — قبل رفع الملف
+# ─────────────────────────────────────────────────────────────
 if uploaded_platform is None:
     st.markdown("""
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
-                height:60vh;text-align:center;">
-        <div style="font-size:64px;margin-bottom:20px;">📂</div>
-        <h2 style="color:#1E3A8A;margin-bottom:12px;">ارفع ملف المنصة للبدء</h2>
-        <p style="color:#6B7280;font-size:16px;">
+                height:55vh;text-align:center;direction:rtl;">
+        <div style="font-size:72px;margin-bottom:24px;">📂</div>
+        <h2 style="color:#1E3A8A;margin-bottom:12px;font-family:'Cairo',sans-serif;">ارفع ملف المنصة للبدء</h2>
+        <p style="color:#6B7280;font-size:1rem;max-width:500px;line-height:1.7;">
             ارفع ملف <b>seema_comprehensive_activity_data.xlsx</b> من القائمة الجانبية
+            لبدء تحليل بيانات السائقين وكشف التستر الرقمي
         </p>
-        <p style="color:#9CA3AF;font-size:14px;margin-top:8px;">
-            يمكنك إضافة ملفات الطيران والتقييمات والـ GPS لتحليل أعمق
+        <p style="color:#9CA3AF;font-size:0.875rem;margin-top:8px;">
+            يمكنك إضافة ملفات الطيران والتقييمات والـ GPS لتحليل أعمق وأكثر دقة
         </p>
     </div>
     """, unsafe_allow_html=True)
     st.stop()
 
-# ورقة 1: بيانات الحسابات
+
+# ─────────────────────────────────────────────────────────────
+# قراءة البيانات
+# ─────────────────────────────────────────────────────────────
 raw_accounts = pd.read_excel(uploaded_platform, sheet_name="بيانات الحسابات (Accounts)")
 accounts_df  = raw_accounts.rename(columns=ACCOUNTS_COL_MAP)
 
-# ورقة 2: سجل الطلبات
 raw_orders = pd.read_excel(uploaded_platform, sheet_name="سجل الطلبات (Orders Log)")
 orders_df  = raw_orders.rename(columns=ORDERS_COL_MAP)
 
-# ورقة 3: البيانات المالية
 raw_fin = pd.read_excel(uploaded_platform, sheet_name="البيانات المالية (Financial)")
 fin_df  = raw_fin.rename(columns=FINANCIAL_COL_MAP)
 
 st.sidebar.success(f"✅ تم رفع {n_uploaded}/4 ملفات")
 st.sidebar.caption("المصدر: 📂 بيانات مرفوعة")
 
-# =========================================
-# قراءة ملفات المصادر الخارجية
-# =========================================
 account_ids = accounts_df["account_id"].tolist()
 city_map    = dict(zip(accounts_df["account_id"], accounts_df["city"]))
 
@@ -747,27 +1263,21 @@ else:
     gps_df = generate_gps_traces(account_ids, city_map=city_map)
     gps_df["timestamp"] = pd.to_datetime(gps_df["timestamp"], errors="coerce")
 
-# =========================================
+
+# ─────────────────────────────────────────────────────────────
 # التحليل
-# =========================================
-with st.spinner("جاري التحليل..."):
-    # 1. الدرجة الداخلية
+# ─────────────────────────────────────────────────────────────
+with st.spinner("جاري التحليل، يرجى الانتظار..."):
     df = build_internal_scores(accounts_df.copy(), contamination)
-
-    # 2. الدرجة المالية
     df = add_financial_scores(df, fin_df)
-
-    # 3. كشف التعارضات الخارجية
     flight_conflicts = detect_flight_conflicts_v2(df, orders_df, flight_df) if not orders_df.empty else pd.DataFrame()
     review_conflicts = detect_review_conflicts_v2(orders_df, review_df) if not orders_df.empty else pd.DataFrame()
     gps_conflicts    = detect_gps_conflicts_v2(orders_df, gps_df) if not orders_df.empty else pd.DataFrame()
-
-    # 4. الدرجة النهائية
     df = compute_final_scores(df, flight_conflicts, review_conflicts, gps_conflicts)
 
-# =========================================
+# ─────────────────────────────────────────────────────────────
 # إحصاءات عامة
-# =========================================
+# ─────────────────────────────────────────────────────────────
 total_accounts      = len(df)
 suspicious_accounts = int((df["final_flag"] == "مشبوه").sum())
 estimated_workers   = total_accounts - suspicious_accounts
@@ -776,9 +1286,10 @@ official_pct        = BENCHMARKS["suspicious_ratio"] * 100
 gap_vs_official     = round(gap_pct - official_pct, 2)
 display_df          = df[df["final_flag"] == "مشبوه"].copy() if show_only_suspicious else df.copy()
 
-# =========================================
-# Tabs
-# =========================================
+
+# ─────────────────────────────────────────────────────────────
+# التبويبات
+# ─────────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 النظرة العامة",
     "🌐 المصادر غير التقليدية",
@@ -787,86 +1298,140 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📄 التقارير",
 ])
 
-# ──────────────────────────────────────────
-# Tab 1: النظرة العامة
-# ──────────────────────────────────────────
-with tab1:
-    st.subheader("النظرة العامة")
 
-    interp = (
-        "سِيماء ترصد نسبة اشتباه أعلى من المعدل الرسمي — يُرجَّح وجود تستر رقمي"
-        if gap_vs_official > 5 else
-        "نسبة الاشتباه تتوافق مع المعدل الرسمي الوطني"
-        if abs(gap_vs_official) <= 5 else
-        "نسبة اشتباه أقل من المعدل الرسمي — البيانات أقل تشوهاً من المتوسط الوطني"
-    )
+# ══════════════════════════════════════════════════════════════
+# Tab 1: النظرة العامة
+# ══════════════════════════════════════════════════════════════
+with tab1:
+    st.subheader("📊 النظرة العامة")
+
+    # ── بطاقة الفجوة الإحصائية مع تفسير مبسّط ──
+    if gap_vs_official > 5:
+        alert_class = "alert-danger"
+        interp_icon = "🔴"
+        interp_text = "النسبة المرصودة أعلى من المعدل الوطني — هذا مؤشر على وجود تستر رقمي محتمل يستحق التدقيق"
+    elif abs(gap_vs_official) <= 5:
+        alert_class = "alert-normal"
+        interp_icon = "🟢"
+        interp_text = "النسبة المرصودة تتوافق مع المعدل الوطني — الأوضاع ضمن النطاق الطبيعي"
+    else:
+        alert_class = "alert-warning"
+        interp_icon = "🟡"
+        interp_text = "النسبة أقل من المعدل الوطني — البيانات أقل تشوهًا من المتوسط"
 
     st.markdown(f"""
-    <div style="background:#EFF6FF;padding:18px;border-radius:12px;border:1px solid #BFDBFE;">
-        <h3 style="margin:0;color:#1E40AF;">الفجوة الإحصائية المرصودة: {gap_pct}%</h3>
-        <p style="margin-top:8px;color:#374151;">
+    <div class="{alert_class}">
+        <b>{interp_icon} الفجوة الإحصائية المرصودة: {gap_pct}%</b><br>
         المعدل الرسمي (GASTAT Q3 2024): {official_pct}% —
-        الفجوة: <b>{gap_vs_official:+.2f}%</b>
-        </p>
-        <p style="color:#6B7280;margin:0;">{interp}</p>
+        الفجوة: <b>{gap_vs_official:+.2f}%</b><br>
+        <span style="font-size:0.85rem;">{interp_text}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── توضيح للمستخدم العادي ──
+    st.markdown("""
+    <div class="alert-info">
+        <b>💡 ماذا تعني هذه الأرقام؟</b><br>
+        <span style="font-size:0.88rem;">
+        سِيماء تحلل بيانات السائقين من عدة مصادر لاكتشاف الحسابات التي يبدو أنها تُستخدم من أكثر من شخص (التستر الرقمي).
+        الحسابات "المشبوهة" تجاوزت مؤشرات تنبيه متعددة كساعات العمل الطويلة جداً، واستخدام أجهزة متعددة، والتعارض مع رحلات الطيران.
+        </span>
     </div>
     """, unsafe_allow_html=True)
 
     st.write("")
-    c1,c2,c3,c4,c5 = st.columns(5)
-    c1.metric("إجمالي الحسابات",   total_accounts)
-    c2.metric("الحسابات المشبوهة", suspicious_accounts)
-    c3.metric("العمالة المقدّرة",   estimated_workers)
-    c4.metric("الفجوة المرصودة",    f"{gap_pct}%")
-    c5.metric("المعدل الرسمي",      f"{official_pct}%")
 
+    # ── مقاييس رئيسية ──
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("📋 إجمالي الحسابات",    total_accounts)
+    c2.metric("⚠️ الحسابات المشبوهة",  suspicious_accounts)
+    c3.metric("👷 العمالة المقدّرة",    estimated_workers)
+    c4.metric("📈 الفجوة المرصودة",     f"{gap_pct}%")
+    c5.metric("📏 المعدل الرسمي",       f"{official_pct}%")
+
+    st.write("")
+
+    # ── رسوم بيانية + توضيح ──
     col_a, col_b = st.columns(2)
     with col_a:
         city_counts = df.groupby("city", as_index=False)["account_id"].count().rename(columns={"account_id":"عدد"})
-        st.plotly_chart(
-            px.bar(city_counts, x="city", y="عدد", title="توزيع الحسابات حسب المدينة",
-                   labels={"city":"المدينة"}),
-            use_container_width=True
+        fig_city = px.bar(city_counts, x="city", y="عدد",
+                          title="توزيع الحسابات حسب المدينة",
+                          labels={"city":"المدينة"},
+                          color="عدد",
+                          color_continuous_scale="Blues")
+        fig_city.update_layout(
+            font_family="Cairo",
+            title_font_size=14,
+            xaxis_title="المدينة",
+            yaxis_title="عدد الحسابات",
         )
+        st.plotly_chart(fig_city, use_container_width=True)
+        st.markdown("""
+        <div class="chart-caption">
+            📌 يوضح هذا الرسم عدد حسابات السائقين في كل مدينة. المدن ذات الأعمدة الأطول تحتوي على أكبر عدد من الحسابات وتستوجب رقابة أكبر.
+        </div>
+        """, unsafe_allow_html=True)
+
     with col_b:
         rs = df["final_flag"].value_counts().reset_index()
-        rs.columns = ["flag","count"]
-        st.plotly_chart(
-            px.pie(rs, names="flag", values="count", title="طبيعي مقابل مشبوه"),
-            use_container_width=True
-        )
+        rs.columns = ["flag", "count"]
+        fig_pie = px.pie(rs, names="flag", values="count",
+                         title="طبيعي مقابل مشبوه",
+                         color="flag",
+                         color_discrete_map={"طبيعي": "#22C55E", "مشبوه": "#EF4444"})
+        fig_pie.update_layout(font_family="Cairo", title_font_size=14)
+        st.plotly_chart(fig_pie, use_container_width=True)
+        st.markdown("""
+        <div class="chart-caption">
+            📌 يُظهر هذا الرسم نسبة الحسابات الطبيعية (خضراء) مقابل المشبوهة (حمراء). كلما زادت المساحة الحمراء، ارتفع احتمال وجود تستر رقمي.
+        </div>
+        """, unsafe_allow_html=True)
 
-    st.write("### أهم 10 حسابات عالية الاشتباه")
+    st.markdown("---")
+    st.markdown("### 🏆 أهم 10 حسابات عالية الاشتباه")
+    st.markdown("""
+    <div class="alert-warning">
+        ⚠️ هذه الحسابات سجّلت أعلى درجات اشتباه — يُنصح بمراجعتها أولاً. درجة الاشتباه من 0 إلى 100؛ كلما ارتفعت، زادت الحاجة للتدقيق.
+    </div>
+    """, unsafe_allow_html=True)
     top10_cols = [c for c in [
         "account_id","city","daily_hours","continuous_work_hours","device_count",
         "city_count_per_day","fin_score","internal_suspicion_score",
         "external_suspicion_score","suspicion_score","risk_level","reason"
     ] if c in df.columns]
-    st.dataframe(df.sort_values("suspicion_score", ascending=False)[top10_cols].head(10), use_container_width=True)
+    st.dataframe(
+        df.sort_values("suspicion_score", ascending=False)[top10_cols].head(10),
+        use_container_width=True
+    )
 
 
-# ──────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
 # Tab 2: المصادر غير التقليدية
-# ──────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
 with tab2:
     st.subheader("🌐 المصادر غير التقليدية")
     st.markdown("""
-    سِيماء تكشف التستر الرقمي عبر **4 مصادر** — البيانات تأتي خام والنظام يحلل ويكتشف التعارضات.
-    """)
+    <div class="alert-info">
+        💡 سِيماء تكشف التستر الرقمي عبر <b>4 مصادر بيانات</b>. كل مصدر يضيف دليلاً إضافياً على احتمالية استخدام الحساب من أكثر من شخص.
+    </div>
+    """, unsafe_allow_html=True)
 
-    m1,m2,m3,m4 = st.columns(4)
+    m1, m2, m3, m4 = st.columns(4)
     m1.metric("💰 المالية المشبوهة",    int((df["fin_score"] > 40).sum()))
     m2.metric("✈️ تعارضات الطيران",     len(flight_conflicts) if not flight_conflicts.empty else 0)
     m3.metric("📱 تعارضات التقييمات",   len(review_conflicts) if not review_conflicts.empty else 0)
     m4.metric("🗺️ شذوذات GPS",           len(gps_conflicts)    if not gps_conflicts.empty    else 0)
 
     # ── المصدر المالي ──
-    st.write("---")
-    st.write("### 💰 المصدر 1 — البيانات المالية")
-    st.info(
-        "**المصدر الواقعي:** مزود الدفع الإلكتروني (STC Pay / مدى)\n\n"
-        "**ما يكشفه:** مصادر شحن متعددة + سحوبات على مدار 24 ساعة + نمو مالي غير طبيعي = أشخاص متعددون يستخدمون نفس المحفظة"
-    )
+    st.markdown("---")
+    st.markdown("### 💰 المصدر 1 — البيانات المالية")
+    st.markdown("""
+    <div class="alert-info">
+        <b>ما يكشفه هذا المصدر:</b> إذا كان حساب السائق يُشحن من عدة محافظ مختلفة، أو تتم منه سحوبات في ساعات غير طبيعية (على مدار 24 ساعة)،
+        أو نما دخله بشكل مفاجئ — فهذا مؤشر على أن أكثر من شخص يستخدم نفس الحساب.
+    </div>
+    """, unsafe_allow_html=True)
     fin_cols = [c for c in ["account_id","charge_sources","daily_withdrawals","monthly_income_growth","bank_updates","withdrawal_timing","fin_score"] if c in df.columns]
     fin_display = df[fin_cols].sort_values("fin_score", ascending=False)
     st.dataframe(fin_display.head(10), use_container_width=True)
@@ -874,150 +1439,256 @@ with tab2:
     col_f1, col_f2 = st.columns(2)
     with col_f1:
         if "charge_sources" in df.columns:
-            st.plotly_chart(
-                px.histogram(df, x="charge_sources", color="final_flag", nbins=15,
-                             title="توزيع مصادر الشحن", labels={"charge_sources":"عدد المصادر"}),
-                use_container_width=True
-            )
+            fig_cs = px.histogram(df, x="charge_sources", color="final_flag", nbins=15,
+                                  title="توزيع مصادر الشحن",
+                                  labels={"charge_sources":"عدد المصادر"},
+                                  color_discrete_map={"طبيعي":"#22C55E","مشبوه":"#EF4444"})
+            fig_cs.update_layout(font_family="Cairo")
+            st.plotly_chart(fig_cs, use_container_width=True)
+            st.markdown("""
+            <div class="chart-caption">
+                📌 الحسابات التي تمتلك أكثر من 3 مصادر شحن (يمين الرسم) تُعدّ مشبوهة لأن السائق الطبيعي لا يحتاج لعدة محافظ.
+            </div>
+            """, unsafe_allow_html=True)
     with col_f2:
         if "monthly_income_growth" in df.columns:
-            st.plotly_chart(
-                px.histogram(df, x="monthly_income_growth", color="final_flag", nbins=20,
-                             title="توزيع النمو الشهري في الدخل",
-                             labels={"monthly_income_growth":"النمو (%)"}),
-                use_container_width=True
-            )
+            fig_ig = px.histogram(df, x="monthly_income_growth", color="final_flag", nbins=20,
+                                  title="توزيع النمو الشهري في الدخل",
+                                  labels={"monthly_income_growth":"النمو (%)"},
+                                  color_discrete_map={"طبيعي":"#22C55E","مشبوه":"#EF4444"})
+            fig_ig.update_layout(font_family="Cairo")
+            st.plotly_chart(fig_ig, use_container_width=True)
+            st.markdown("""
+            <div class="chart-caption">
+                📌 نمو الدخل الشهري الطبيعي لا يتجاوز عادةً 50%. الحسابات التي تجاوزت هذا الحد (يمين الرسم) قد تشير لوجود أكثر من سائق.
+            </div>
+            """, unsafe_allow_html=True)
 
     # ── تذاكر الطيران ──
-    st.write("---")
-    st.write("### ✈️ المصدر 2 — تذاكر الطيران")
-    st.info(
-        "**المصدر الواقعي:** بيانات GACA العامة\n\n"
-        "**كيف يكشف التستر:** `account_id` + `order_date` من سجل الطلبات يُقارَن مع `flight_date` من ملف الطيران — لو طلب نُفِّذ بعد المغادرة = تعارض"
-    )
+    st.markdown("---")
+    st.markdown("### ✈️ المصدر 2 — تذاكر الطيران")
+    st.markdown("""
+    <div class="alert-info">
+        <b>كيف يكشف التستر؟</b> إذا كان السائق في رحلة طيران مسجّلة، لكن حسابه نفّذ طلبات في نفس الوقت —
+        فهذا دليل قاطع على أن شخصاً آخر يعمل على الحساب.
+    </div>
+    """, unsafe_allow_html=True)
     col_t1, col_t2 = st.columns(2)
     with col_t1:
-        st.write("**بيانات الطيران الخام:**")
+        st.markdown("**بيانات الطيران الخام:**")
         st.dataframe(flight_df.head(8), use_container_width=True)
     with col_t2:
         if not flight_conflicts.empty:
-            st.write("**التعارضات المكتشفة:**")
+            st.markdown("""
+            <div class="alert-danger">
+                🔴 <b>تعارضات مكتشفة!</b> هذه الحسابات نفّذت طلبات أثناء وجودها في رحلات طيران مسجّلة.
+            </div>
+            """, unsafe_allow_html=True)
             st.dataframe(flight_conflicts[["account_id","order_id","flight_route","departure_time","order_time","evidence"]].head(8), use_container_width=True)
         else:
-            st.info("لا توجد تعارضات — ارفع ملف المنصة مع ملف الطيران للكشف الحقيقي")
+            st.markdown("""
+            <div class="alert-normal">
+                🟢 لا توجد تعارضات مكتشفة حالياً — ارفع ملف المنصة مع ملف الطيران للكشف الحقيقي.
+            </div>
+            """, unsafe_allow_html=True)
 
     # ── تقييمات التطبيقات ──
-    st.write("---")
-    st.write("### 📱 المصدر 3 — تقييمات التطبيقات")
-    st.info(
-        "**المصدر الواقعي:** تقييمات Uber / Google Maps\n\n"
-        "**كيف يكشف التستر:** `order_id` يربط نهاية الطلب (`dropoff_lat/lon`) بموقع التقييم — لو المسافة مستحيلة في الوقت المتاح = شخص آخر أعطى التقييم"
-    )
+    st.markdown("---")
+    st.markdown("### 📱 المصدر 3 — تقييمات التطبيقات")
+    st.markdown("""
+    <div class="alert-info">
+        <b>كيف يكشف التستر؟</b> إذا جاء تقييم العميل من موقع يستحيل الوصول إليه خلال الوقت المتاح بعد انتهاء الطلب —
+        فهذا يعني أن شخصاً آخر في موقع مختلف أعطى التقييم.
+    </div>
+    """, unsafe_allow_html=True)
     col_r1, col_r2 = st.columns(2)
     with col_r1:
-        st.write("**بيانات التقييمات الخام:**")
+        st.markdown("**بيانات التقييمات الخام:**")
         st.dataframe(review_df.head(8), use_container_width=True)
     with col_r2:
         if not review_conflicts.empty:
-            st.write("**التنقلات المستحيلة:**")
+            st.markdown("""
+            <div class="alert-danger">
+                🔴 <b>تنقلات مستحيلة!</b> هذه الحسابات أعطت تقييمات من مواقع لا يمكن الوصول إليها في الوقت المتاح.
+            </div>
+            """, unsafe_allow_html=True)
             st.dataframe(review_conflicts[["account_id","order_id","gap_min","dist_km","speed_kmh","evidence"]].head(8), use_container_width=True)
         else:
-            st.info("لا توجد تعارضات — ارفع ملف المنصة مع ملف التقييمات للكشف الحقيقي")
+            st.markdown("""
+            <div class="alert-normal">
+                🟢 لا توجد تعارضات حالياً — ارفع ملف المنصة مع ملف التقييمات للكشف الحقيقي.
+            </div>
+            """, unsafe_allow_html=True)
 
     # ── GPS ──
-    st.write("---")
-    st.write("### 🗺️ المصدر 4 — مسارات GPS")
-    st.info(
-        "**المصدر الواقعي:** Strava / OpenStreetMap\n\n"
-        "**كيف يكشف التستر:** `order_id` يربط أول نقطة GPS بموقع الاستلام (`pickup_lat/lon`) — لو المسافة مستحيلة في الفارق الزمني = شخص آخر بدأ الطلب"
-    )
+    st.markdown("---")
+    st.markdown("### 🗺️ المصدر 4 — مسارات GPS")
+    st.markdown("""
+    <div class="alert-info">
+        <b>كيف يكشف التستر؟</b> إذا انتقلت إشارة GPS من موقع استلام الطلب إلى موقع آخر بعيد في ثوانٍ — فهذا مستحيل فيزيائياً،
+        ويدل على أن الطلب بدأ من شخص مختلف.
+    </div>
+    """, unsafe_allow_html=True)
     col_g1, col_g2 = st.columns(2)
     with col_g1:
-        st.write("**بيانات GPS الخام:**")
+        st.markdown("**بيانات GPS الخام:**")
         st.dataframe(gps_df.head(8), use_container_width=True)
     with col_g2:
         if not gps_conflicts.empty:
-            st.write("**القفزات المستحيلة:**")
+            st.markdown("""
+            <div class="alert-danger">
+                🔴 <b>قفزات جغرافية مستحيلة!</b> هذه الحسابات سجّلت تنقلات تتجاوز حدود السرعة الممكنة.
+            </div>
+            """, unsafe_allow_html=True)
             st.dataframe(gps_conflicts[["account_id","order_id","gap_sec","dist_km","speed_kmh","evidence"]].head(8), use_container_width=True)
         else:
-            st.info("لا توجد تعارضات — ارفع ملف المنصة مع ملف GPS للكشف الحقيقي")
+            st.markdown("""
+            <div class="alert-normal">
+                🟢 لا توجد شذوذات GPS حالياً — ارفع ملف المنصة مع ملف GPS للكشف الحقيقي.
+            </div>
+            """, unsafe_allow_html=True)
 
-    # تأثير المصادر على الدرجة النهائية
-    st.write("---")
-    st.write("### ⚖️ تأثير المصادر الأربعة على درجة الاشتباه النهائية")
+    # ── تأثير المصادر ──
+    st.markdown("---")
+    st.markdown("### ⚖️ تأثير المصادر الأربعة على درجة الاشتباه النهائية")
     fig_comp = px.scatter(
         df.sample(min(150, len(df))),
         x="internal_suspicion_score", y="suspicion_score",
         color="final_flag", size="fin_score",
         hover_data=["account_id","city","external_suspicion_score"],
-        title="الداخلية مقابل النهائية (حجم الدائرة = الدرجة المالية)",
-        labels={"internal_suspicion_score":"الداخلية","suspicion_score":"النهائية"}
+        title="الدرجة الداخلية مقابل الدرجة النهائية",
+        labels={"internal_suspicion_score":"الدرجة الداخلية","suspicion_score":"الدرجة النهائية"},
+        color_discrete_map={"طبيعي":"#22C55E","مشبوه":"#EF4444"}
     )
-    fig_comp.add_shape(type="line", x0=0, y0=0, x1=100, y1=100, line=dict(dash="dash", color="gray"))
+    fig_comp.add_shape(type="line", x0=0, y0=0, x1=100, y1=100,
+                       line=dict(dash="dash", color="gray"))
+    fig_comp.update_layout(font_family="Cairo")
     st.plotly_chart(fig_comp, use_container_width=True)
+    st.markdown("""
+    <div class="chart-caption">
+        📌 كل نقطة تمثل حساباً. النقاط الحمراء أعلى اليمين هي الأعلى اشتباهاً. حجم الدائرة يعكس درجة الاشتباه المالي.
+        النقاط القريبة من الخط المتقطع تعني أن الدرجة الداخلية والنهائية متقاربتان.
+    </div>
+    """, unsafe_allow_html=True)
 
 
-# ──────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
 # Tab 3: محرك الكشف
-# ──────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
 with tab3:
     st.subheader("🔍 محرك الكشف والتحليل")
 
     st.markdown("""
-    **منهجية سِيماء — 3 طبقات:**
-
-    **الطبقة الداخلية (45%):** Isolation Forest + Rule-based (معايير رسمية) + Z-Score + Haversine
-
-    **الطبقة المالية (20%):** مصادر الشحن + توقيتات السحب + النمو الشهري + تحديثات البنك
-
-    **الطبقة الخارجية (35%):** تذاكر الطيران + تقييمات التطبيقات + مسارات GPS
-
-    الربط عبر: `account_id` للطيران والمالية — `order_id` للتقييمات والـ GPS
-    """)
+    <div class="alert-info">
+        <b>🧠 كيف يعمل المحرك؟</b><br>
+        <span style="font-size:0.88rem;">
+        يعتمد سِيماء على ثلاث طبقات تحليلية مدمجة:
+        الطبقة الداخلية (45%) تستخدم خوارزمية Isolation Forest للكشف عن الأنماط الشاذة، إلى جانب قواعد مبنية على المعايير الرسمية.
+        الطبقة المالية (20%) تحلل مصادر الشحن وأنماط السحب.
+        الطبقة الخارجية (35%) تربط البيانات بتذاكر الطيران، تقييمات التطبيقات، ومسارات GPS.
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
 
     col_x, col_y = st.columns(2)
     with col_x:
-        st.plotly_chart(
-            px.scatter(df, x="daily_hours", y="accepted_orders", color="final_flag",
-                       size="suspicion_score",
-                       hover_data=["account_id","city","device_count","reason"],
-                       title="ساعات العمل مقابل عدد الطلبات"),
-            use_container_width=True
+        fig_scatter = px.scatter(
+            df, x="daily_hours", y="accepted_orders",
+            color="final_flag",
+            size="suspicion_score",
+            hover_data=["account_id","city","device_count","reason"],
+            title="ساعات العمل اليومية مقابل عدد الطلبات",
+            color_discrete_map={"طبيعي":"#22C55E","مشبوه":"#EF4444"},
+            labels={"daily_hours":"الساعات/يوم", "accepted_orders":"الطلبات/يوم"}
         )
-    with col_y:
-        st.plotly_chart(
-            px.histogram(df, x="suspicion_score", color="final_flag",
-                         nbins=30, title="توزيع درجات الاشتباه النهائية"),
-            use_container_width=True
-        )
+        fig_scatter.update_layout(font_family="Cairo")
+        st.plotly_chart(fig_scatter, use_container_width=True)
+        st.markdown("""
+        <div class="chart-caption">
+            📌 الحسابات الطبيعية (خضراء) تتركز في المنطقة الوسطى. الحسابات المشبوهة (حمراء وكبيرة الحجم) تتجاوز الحدود الرسمية
+            لساعات العمل (14 ساعة/يوم) أو عدد الطلبات (10 طلبات/يوم).
+        </div>
+        """, unsafe_allow_html=True)
 
-    # Z-Score
+    with col_y:
+        fig_hist = px.histogram(
+            df, x="suspicion_score", color="final_flag",
+            nbins=30, title="توزيع درجات الاشتباه النهائية",
+            color_discrete_map={"طبيعي":"#22C55E","مشبوه":"#EF4444"},
+            labels={"suspicion_score":"درجة الاشتباه"}
+        )
+        fig_hist.update_layout(font_family="Cairo")
+        # خط الحد الفاصل
+        fig_hist.add_vline(x=60, line_dash="dash", line_color="red",
+                           annotation_text="حد الاشتباه (60)", annotation_position="top right")
+        st.plotly_chart(fig_hist, use_container_width=True)
+        st.markdown("""
+        <div class="chart-caption">
+            📌 الحسابات التي تجاوزت الخط الأحمر (درجة 60 وما فوق) تُصنَّف مشبوهة. كلما ارتفع الشريط في المنطقة الحمراء،
+            زاد عدد الحسابات ذات المخاطر العالية.
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── Z-Score ──
     z_cols_available = [c for c in ["z_daily_hours","z_continuous_work_hours","z_device_count","z_accepted_orders"] if c in df.columns]
     if z_cols_available:
-        st.write("### توزيع Z-Score")
-        z_df = df[["final_flag"] + z_cols_available].melt(id_vars="final_flag", var_name="المؤشر", value_name="Z-Score")
-        st.plotly_chart(
-            px.box(z_df, x="المؤشر", y="Z-Score", color="final_flag",
-                   title="توزيع Z-Score حسب تصنيف الحساب"),
-            use_container_width=True
+        st.markdown("---")
+        st.markdown("### 📐 توزيع مؤشر الانحراف المعياري (Z-Score)")
+        st.markdown("""
+        <div class="alert-info">
+            💡 مؤشر Z-Score يقيس مدى بُعد قيمة الحساب عن متوسط الحسابات الأخرى. الحسابات التي تتجاوز +2 أو -2 تُعدّ شاذة ومختلفة عن الطبيعي.
+        </div>
+        """, unsafe_allow_html=True)
+        z_df = df[["final_flag"] + z_cols_available].melt(
+            id_vars="final_flag", var_name="المؤشر", value_name="Z-Score"
         )
+        fig_box = px.box(
+            z_df, x="المؤشر", y="Z-Score", color="final_flag",
+            title="توزيع Z-Score حسب تصنيف الحساب",
+            color_discrete_map={"طبيعي":"#22C55E","مشبوه":"#EF4444"}
+        )
+        fig_box.update_layout(font_family="Cairo")
+        st.plotly_chart(fig_box, use_container_width=True)
+        st.markdown("""
+        <div class="chart-caption">
+            📌 الصناديق تُظهر توزيع قيم كل مؤشر. الصناديق الحمراء (المشبوهة) التي ترتفع بشكل كبير فوق الصناديق الخضراء
+            تُشير إلى فجوة واضحة في السلوك بين الحسابات الطبيعية والمشبوهة.
+        </div>
+        """, unsafe_allow_html=True)
 
-    # Haversine
-    st.write("### الانحراف الجغرافي — Haversine")
-    st.plotly_chart(
-        px.scatter_mapbox(
-            df, lat="lat", lon="lon", color="final_flag",
-            size="geo_anomaly_score",
-            hover_data=["account_id","city","dist_from_city_center_km"],
-            zoom=5, center={"lat":24.5,"lon":44.0},
-            mapbox_style="carto-positron",
-            title="توزيع الحسابات جغرافياً"
-        ),
-        use_container_width=True
+    # ── Haversine Map ──
+    st.markdown("---")
+    st.markdown("### 🗺️ التوزيع الجغرافي للحسابات")
+    st.markdown("""
+    <div class="alert-info">
+        💡 الحسابات التي تنشط في مناطق بعيدة جداً عن مدينتها المسجّلة قد تعمل في مناطق مختلفة، مما يرفع احتمالية التستر.
+    </div>
+    """, unsafe_allow_html=True)
+    fig_map = px.scatter_mapbox(
+        df, lat="lat", lon="lon", color="final_flag",
+        size="geo_anomaly_score",
+        hover_data=["account_id","city","dist_from_city_center_km"],
+        zoom=5, center={"lat":24.5,"lon":44.0},
+        mapbox_style="carto-positron",
+        title="توزيع الحسابات جغرافياً",
+        color_discrete_map={"طبيعي":"#22C55E","مشبوه":"#EF4444"}
     )
+    fig_map.update_layout(font_family="Cairo")
+    st.plotly_chart(fig_map, use_container_width=True)
+    st.markdown("""
+    <div class="chart-caption">
+        📌 كل نقطة على الخريطة تمثل حساباً. حجم النقطة يعكس مدى بُعده الجغرافي عن مدينته الأصلية. النقاط الحمراء الكبيرة تستحق المراجعة.
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Heatmap
-    st.write("### خريطة الارتباط")
+    # ── Heatmap الارتباط ──
+    st.markdown("---")
+    st.markdown("### 🔥 خريطة الارتباط بين المؤشرات")
+    st.markdown("""
+    <div class="alert-info">
+        💡 خريطة الارتباط تُظهر العلاقة بين المؤشرات المختلفة. الألوان الداكنة تعني ارتباطاً قوياً — أي أن المؤشرين يرتفعان أو ينخفضان معاً.
+    </div>
+    """, unsafe_allow_html=True)
     corr_cols = [c for c in [
         "daily_hours","accepted_orders","continuous_work_hours","device_count",
         "city_count_per_day","fin_score","external_suspicion_score","suspicion_score"
@@ -1025,13 +1696,19 @@ with tab3:
     corr = df[corr_cols].corr()
     fig_heat = go.Figure(data=go.Heatmap(
         z=corr.values, x=corr.columns, y=corr.columns,
-        text=np.round(corr.values,2), texttemplate="%{text}",
+        text=np.round(corr.values, 2), texttemplate="%{text}",
         colorscale="RdYlGn_r"
     ))
-    fig_heat.update_layout(height=500)
+    fig_heat.update_layout(height=500, font_family="Cairo")
     st.plotly_chart(fig_heat, use_container_width=True)
+    st.markdown("""
+    <div class="chart-caption">
+        📌 القيم القريبة من +1 (أحمر داكن) تعني أن المؤشرين يرتفعان معاً — وهذا يساعد على فهم أي المؤشرات تتحرك في نفس الاتجاه.
+    </div>
+    """, unsafe_allow_html=True)
 
-    st.write("### جدول النتائج الكاملة")
+    st.markdown("---")
+    st.markdown("### 📊 جدول النتائج الكاملة")
     result_cols = [c for c in [
         "account_id","city","daily_hours","continuous_work_hours","device_count",
         "city_count_per_day","fin_score","flight_conflict_score",
@@ -1039,16 +1716,26 @@ with tab3:
         "internal_suspicion_score","external_suspicion_score",
         "suspicion_score","risk_level","final_flag","reason"
     ] if c in display_df.columns]
-    st.dataframe(display_df[result_cols].sort_values("suspicion_score", ascending=False), use_container_width=True)
+    st.dataframe(
+        display_df[result_cols].sort_values("suspicion_score", ascending=False),
+        use_container_width=True
+    )
 
 
-# ──────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
 # Tab 4: دعم القرار
-# ──────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
 with tab4:
     st.subheader("📋 دعم القرار")
 
-    st.write("### مقارنة الأرقام")
+    st.markdown("""
+    <div class="alert-info">
+        💡 هذه الصفحة تُقدّم مقارنات وتوصيات عملية للمحقق أو صاحب القرار، استناداً إلى نتائج التحليل والمعايير الرسمية المعتمدة.
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── مقارنة الأرقام ──
+    st.markdown("### 📊 مقارنة الأرقام: الإداري vs سِيماء vs GASTAT")
     compare_df = pd.DataFrame({
         "الحالة": ["الرقم الإداري","بعد تنقية سِيماء","المعدل الرسمي (GASTAT)"],
         "القيمة": [
@@ -1056,64 +1743,96 @@ with tab4:
             int(total_accounts * (1 - BENCHMARKS["suspicious_ratio"]))
         ]
     })
-    st.plotly_chart(
-        px.bar(compare_df, x="الحالة", y="القيمة", text="القيمة", color="الحالة",
-               title="مقارنة: الإداري vs سِيماء vs GASTAT"),
-        use_container_width=True
+    fig_compare = px.bar(
+        compare_df, x="الحالة", y="القيمة",
+        text="القيمة", color="الحالة",
+        title="مقارنة: الإداري مقابل سِيماء مقابل المعدل الرسمي",
+        color_discrete_sequence=["#1E3A8A","#22C55E","#F59E0B"]
     )
+    fig_compare.update_layout(font_family="Cairo", showlegend=False)
+    st.plotly_chart(fig_compare, use_container_width=True)
+    st.markdown("""
+    <div class="chart-caption">
+        📌 الفجوة بين العمود الأول (الرقم الإداري) والعمود الثاني (بعد التنقية) تُمثّل الحسابات المشبوهة التي رصدها سِيماء.
+        كلما زادت الفجوة، ارتفع احتمال وجود تستر رقمي.
+    </div>
+    """, unsafe_allow_html=True)
 
-    st.write("### المعايير الرسمية المعتمدة")
+    # ── المعايير الرسمية ──
+    st.markdown("---")
+    st.markdown("### 📏 المعايير الرسمية المعتمدة")
+    st.markdown("""
+    <div class="alert-info">
+        💡 هذه المعايير هي الحدود التي تعتمدها الجهات الرسمية للحكم على طبيعية نشاط السائق. أي حساب يتجاوزها يُعدّ مشبوهاً.
+    </div>
+    """, unsafe_allow_html=True)
     st.table(pd.DataFrame({
-        "المؤشر":  ["حد ساعات العمل","متوسط الطلبات","نسبة المشبوهين"],
+        "المؤشر":  ["الحد الأقصى لساعات العمل اليومية","متوسط عدد الطلبات في اليوم","النسبة الوطنية للحسابات المشبوهة"],
         "القيمة":  ["14 ساعة/يوم","10 طلبات/يوم","~14%"],
         "المصدر":  ["هيئة النقل السعودية 2024","Uber Global Report 2023","GASTAT Q3 2024"],
     }))
 
-    st.write("### القطاعات والمدن الأعلى خطورة")
+    # ── المدن الأعلى خطورة ──
+    st.markdown("---")
+    st.markdown("### 🏙️ المدن الأعلى خطورة")
     city_risk = (
         df.groupby("city").agg(
             total=("account_id","count"),
             suspicious=("final_flag", lambda x: (x=="مشبوه").sum())
         ).reset_index()
     )
-    city_risk["risk_pct"] = (city_risk["suspicious"] / city_risk["total"] * 100).round(2)
-    city_risk = city_risk.sort_values("risk_pct", ascending=False)
+    city_risk["نسبة الاشتباه %"] = (city_risk["suspicious"] / city_risk["total"] * 100).round(2)
+    city_risk = city_risk.sort_values("نسبة الاشتباه %", ascending=False)
+    city_risk.columns = ["المدينة","إجمالي الحسابات","الحسابات المشبوهة","نسبة الاشتباه %"]
     st.dataframe(city_risk, use_container_width=True)
 
-    top_city = city_risk.iloc[0]["city"] if len(city_risk) > 0 else "—"
+    top_city = city_risk.iloc[0]["المدينة"] if len(city_risk) > 0 else "—"
+    top_pct  = city_risk.iloc[0]["نسبة الاشتباه %"] if len(city_risk) > 0 else 0
 
-    st.warning(f"""
-    **توصية 1:** مراجعة النشاط في مدينة **{top_city}** لارتفاع نسبة الاشتباه.
-    **توصية 2:** الحسابات ذات مصادر شحن > 3 أو سحوبات على مدار 24 ساعة تستحق تدقيقاً فورياً.
-    **توصية 3:** ربط سجل الطلبات بتذاكر الطيران كشف تعارضات مباشرة لا تُرصد بالتحليل السلوكي وحده.
-    **توصية 4:** عدم الاكتفاء بالعدّ الإداري — الحساب الواحد قد يمثل أكثر من عامل.
-    """)
+    # ── التوصيات ──
+    st.markdown("---")
+    st.markdown("### 💡 التوصيات التشغيلية")
+
+    if top_pct > 20:
+        city_alert_class = "alert-danger"
+        city_alert_icon  = "🔴"
+    elif top_pct > 14:
+        city_alert_class = "alert-warning"
+        city_alert_icon  = "🟡"
+    else:
+        city_alert_class = "alert-normal"
+        city_alert_icon  = "🟢"
+
+    st.markdown(f"""
+    <div class="{city_alert_class}">
+        {city_alert_icon} <b>توصية 1:</b> مراجعة النشاط في مدينة <b>{top_city}</b> — نسبة الاشتباه فيها {top_pct}%
+        {'(أعلى من المعدل الوطني)' if top_pct > 14 else '(ضمن المعدل الوطني)'}.
+    </div>
+    <div class="alert-warning">
+        🟡 <b>توصية 2:</b> الحسابات ذات مصادر شحن > 3 أو سحوبات على مدار 24 ساعة تستحق تدقيقاً فورياً.
+    </div>
+    <div class="alert-info">
+        🔵 <b>توصية 3:</b> ربط سجل الطلبات بتذاكر الطيران كشف تعارضات مباشرة لا تُرصد بالتحليل السلوكي وحده.
+    </div>
+    <div class="alert-info">
+        🔵 <b>توصية 4:</b> عدم الاكتفاء بالعدّ الإداري — الحساب الواحد قد يمثل أكثر من عامل.
+    </div>
+    """, unsafe_allow_html=True)
 
 
-# ──────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
 # Tab 5: التقارير
-# ──────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
 with tab5:
     st.subheader("📄 التقارير والمخرجات")
 
-    export_cols = [c for c in [
-        "account_id","city","daily_hours","continuous_work_hours","device_count",
-        "city_count_per_day","fin_score","flight_conflict_score",
-        "review_conflict_score","gps_conflict_score",
-        "internal_suspicion_score","external_suspicion_score",
-        "suspicion_score","risk_level","final_flag","reason"
-    ] if c in df.columns]
-
-    csv_data = df[export_cols].sort_values("suspicion_score", ascending=False).to_csv(index=False).encode("utf-8-sig")
-    st.download_button("📥 تحميل النتائج CSV", data=csv_data, file_name="seema_results.csv", mime="text/csv")
-
-    if st.button("📄 إنشاء تقرير PDF"):
-        pdf_bytes = create_pdf_report(df, total_accounts, suspicious_accounts, estimated_workers, gap_pct)
-        b64 = base64.b64encode(pdf_bytes).decode()
-        st.markdown(f'<a href="data:application/pdf;base64,{b64}" download="seema_report.pdf">اضغط هنا لتحميل التقرير</a>', unsafe_allow_html=True)
-        st.success("تم إنشاء التقرير")
-
-    st.write("### ملخص سريع")
+    # ── ملخص سريع ──
+    st.markdown("### 📊 ملخص سريع")
+    st.markdown("""
+    <div class="alert-info">
+        💡 هذا الملخص يجمع أهم المؤشرات في مكان واحد. يمكن طباعة هذه الصفحة مباشرة من المتصفح أو تحميل التقرير كـ PDF.
+    </div>
+    """, unsafe_allow_html=True)
     st.table(pd.DataFrame({
         "المؤشر": [
             "إجمالي الحسابات","الحسابات المشبوهة","العمالة المقدّرة",
@@ -1126,5 +1845,77 @@ with tab5:
             len(flight_conflicts) if not flight_conflicts.empty else 0,
             len(review_conflicts) if not review_conflicts.empty else 0,
             len(gps_conflicts)    if not gps_conflicts.empty    else 0,
+        ],
+        "الدلالة": [
+            "إجمالي الحسابات المحللة",
+            "تجاوزت درجة الاشتباه ≥ 60",
+            "بعد استبعاد المشبوهة",
+            "نسبة الاشتباه من الإجمالي",
+            "المرجع الرسمي GASTAT Q3 2024",
+            "موجب = أعلى من المعدل الوطني",
+            "طلبات نُفّذت أثناء رحلات طيران",
+            "تقييمات من مواقع مستحيلة",
+            "قفزات جغرافية غير ممكنة",
         ]
     }))
+
+    st.markdown("---")
+
+    # ── تحميل CSV ──
+    st.markdown("### 📥 تحميل النتائج")
+    export_cols = [c for c in [
+        "account_id","city","daily_hours","continuous_work_hours","device_count",
+        "city_count_per_day","fin_score","flight_conflict_score",
+        "review_conflict_score","gps_conflict_score",
+        "internal_suspicion_score","external_suspicion_score",
+        "suspicion_score","risk_level","final_flag","reason"
+    ] if c in df.columns]
+    csv_data = df[export_cols].sort_values("suspicion_score", ascending=False).to_csv(index=False).encode("utf-8-sig")
+    st.download_button(
+        "📥 تحميل جميع النتائج (CSV)",
+        data=csv_data,
+        file_name="seema_results.csv",
+        mime="text/csv",
+        help="يمكن فتحه في Excel مباشرة"
+    )
+
+    st.markdown("---")
+
+    # ── PDF ──
+    st.markdown("### 🖨️ تقرير PDF رسمي")
+    st.markdown("""
+    <div class="alert-info">
+        💡 التقرير يتضمن الشعارين (سِيماء وهيئة الإحصاء)، الملخص التنفيذي، منهجية الكشف، أعلى الحسابات المشبوهة، والتوصيات.
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("📄 إنشاء تقرير PDF رسمي"):
+        with st.spinner("جاري إنشاء التقرير..."):
+            try:
+                pdf_bytes = create_pdf_report(df, total_accounts, suspicious_accounts, estimated_workers, gap_pct)
+                b64 = base64.b64encode(pdf_bytes).decode()
+                st.markdown(
+                    f'<a href="data:application/pdf;base64,{b64}" download="seema_report.pdf" '
+                    f'style="display:inline-block;background:#1E3A8A;color:white;padding:10px 24px;'
+                    f'border-radius:8px;text-decoration:none;font-family:Cairo,sans-serif;font-weight:600;">'
+                    f'📥 اضغط هنا لتحميل التقرير</a>',
+                    unsafe_allow_html=True
+                )
+                st.success("✅ تم إنشاء التقرير بنجاح!")
+            except Exception as e:
+                st.error(f"حدث خطأ أثناء إنشاء التقرير: {e}")
+
+    st.markdown("---")
+    st.markdown("### 🖨️ طباعة مباشرة من المتصفح")
+    st.markdown("""
+    <div class="alert-info">
+        💡 يمكنك طباعة هذه الصفحة مباشرة من متصفحك (Ctrl+P أو Cmd+P). ستظهر الشعارات وتختفي عناصر التحكم تلقائياً في نسخة الطباعة.
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("""
+    <button onclick="window.print()"
+        style="background:#1E3A8A;color:white;border:none;padding:10px 28px;
+               border-radius:8px;font-family:Cairo,sans-serif;font-size:0.95rem;
+               font-weight:600;cursor:pointer;">
+        🖨️ طباعة الصفحة
+    </button>
+    """, unsafe_allow_html=True)

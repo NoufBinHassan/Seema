@@ -185,6 +185,17 @@ html, body, [class*="css"], .stApp {
     text-align: right !important;
 }
 
+/* ── إصلاح زر رفع الملف ── */
+[data-testid="stFileUploaderDropzone"] button,
+[data-testid="stFileUploader"] button,
+button[kind="secondary"] {
+    direction: ltr !important;
+    unicode-bidi: normal !important;
+}
+[data-testid="stFileUploaderDropzone"] {
+    direction: rtl !important;
+}
+
 /* ── الشريط الجانبي ── */
 [data-testid="stSidebar"] {
     direction: rtl !important;
@@ -1178,7 +1189,7 @@ uploaded_flights = st.sidebar.file_uploader(
     help="flight_data.xlsx"
 )
 uploaded_reviews = st.sidebar.file_uploader(
-    "📱 تقييمات الرحلات — من Uber/Careem (Excel)", type=["xlsx"],
+    "📱 تقييمات التطبيقات — من Google Maps (Excel)", type=["xlsx"],
     help="review_data.xlsx"
 )
 uploaded_gps = st.sidebar.file_uploader(

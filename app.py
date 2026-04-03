@@ -798,94 +798,118 @@ def detect_flight_conflicts_v2(accounts_df, orders_df, flight_df):
 
 
 def detect_review_conflicts_v2(orders_df, review_df):
-    if review_df.empty or orders_df.empty:
+    """
+    يكشف التعارضات مباشرة من ملف التقييمات عبر:
+    1. قفزات جغرافية مستحيلة بين تقييمين متتاليين لنفس الحساب
+    2. تقييمات في مدينتين مختلفتين بفارق زمني قصير
+    """
+    if review_df.empty:
         return pd.DataFrame()
-    if "order_id" not in review_df.columns or "order_id" not in orders_df.columns:
+    needed = ["account_id", "review_date", "review_time", "lat", "lon"]
+    if not all(c in review_df.columns for c in needed):
         return pd.DataFrame()
-    needed = ["order_id","end_time","dropoff_lat","dropoff_lon","order_date"]
-    if not all(c in orders_df.columns for c in needed):
-        return pd.DataFrame()
-    merged = review_df.merge(orders_df[needed], on="order_id", how="inner")
-    if merged.empty:
-        return pd.DataFrame()
+
     conflicts = []
-    for _, row in merged.iterrows():
+    MIN_IMPOSSIBLE_SPEED = 300  # كم/ساعة — مستحيل برياً
+
+    for acc_id, group in review_df.groupby("account_id"):
+        group = group.copy()
         try:
-            rev_time   = pd.to_datetime(f"{row['review_date']} {row['review_time']}", errors="coerce")
-            order_end  = pd.to_datetime(f"{row['order_date']} {row['end_time']}", errors="coerce")
-            if pd.isna(rev_time) or pd.isna(order_end):
-                continue
-            gap_min = (rev_time - order_end).total_seconds() / 60
-            if gap_min < 0 or gap_min > 120:
-                continue
-            dist_km = haversine_scalar(
-                float(row["dropoff_lat"]), float(row["dropoff_lon"]),
-                float(row["lat"]), float(row["lon"])
+            group["datetime"] = pd.to_datetime(
+                group["review_date"].astype(str) + " " + group["review_time"].astype(str),
+                errors="coerce"
             )
-            speed = dist_km / (gap_min / 60) if gap_min > 0 else 0
-            if speed > 120:
-                conflicts.append({
-                    "account_id":          row["account_id"],
-                    "order_id":            row["order_id"],
-                    "review_id":           row["review_id"],
-                    "conflict_type":       "تنقل مستحيل بين نهاية الطلب والتقييم",
-                    "conflict_score":      min(60, round(speed / 120 * 40, 1)),
-                    "gap_min":             round(gap_min, 1),
-                    "dist_km":             round(dist_km, 2),
-                    "speed_kmh":           round(speed, 1),
-                    "evidence": (
-                        f"التقييم جاء من موقع يبعد {dist_km:.1f} كم عن موقع التسليم "
-                        f"في {gap_min:.0f} دقيقة (سرعة {speed:.0f} كم/ساعة)"
-                    ),
-                })
+            group = group.dropna(subset=["datetime", "lat", "lon"])
+            group = group.sort_values("datetime").reset_index(drop=True)
         except Exception:
             continue
+
+        for i in range(1, len(group)):
+            try:
+                prev = group.iloc[i - 1]
+                curr = group.iloc[i]
+                gap_min = (curr["datetime"] - prev["datetime"]).total_seconds() / 60
+                if gap_min <= 0 or gap_min > 120:
+                    continue
+                dist_km = haversine_scalar(
+                    float(prev["lat"]), float(prev["lon"]),
+                    float(curr["lat"]),  float(curr["lon"])
+                )
+                if dist_km < 50:
+                    continue
+                speed = dist_km / (gap_min / 60)
+                if speed > MIN_IMPOSSIBLE_SPEED:
+                    conflicts.append({
+                        "account_id":    acc_id,
+                        "order_id":      curr.get("order_id", "-"),
+                        "review_id":     curr.get("review_id", "-"),
+                        "conflict_type": "تنقل مستحيل بين تقييمين متتاليين",
+                        "conflict_score": min(60, round(speed / MIN_IMPOSSIBLE_SPEED * 40 + 20, 1)),
+                        "gap_min":       round(gap_min, 1),
+                        "dist_km":       round(dist_km, 2),
+                        "speed_kmh":     round(speed, 1),
+                        "evidence": (
+                            f"تقييمان متتاليان لـ {acc_id} بينهما {dist_km:.0f} كم "
+                            f"في {gap_min:.0f} دقيقة فقط (سرعة {speed:.0f} كم/ساعة)"
+                        ),
+                    })
+            except Exception:
+                continue
+
     return pd.DataFrame(conflicts) if conflicts else pd.DataFrame()
 
 
 def detect_gps_conflicts_v2(orders_df, gps_df):
-    if gps_df.empty or orders_df.empty:
+    """
+    يكشف القفزات الجغرافية المستحيلة مباشرة داخل ملف GPS:
+    نقطتان متتاليتان لنفس الحساب بمسافة كبيرة وفارق زمني صغير
+    """
+    if gps_df.empty:
         return pd.DataFrame()
-    if "order_id" not in gps_df.columns or "order_id" not in orders_df.columns:
+    needed = ["account_id", "lat", "lon", "timestamp"]
+    if not all(c in gps_df.columns for c in needed):
         return pd.DataFrame()
-    needed = ["order_id","account_id","start_time","order_date","pickup_lat","pickup_lon"]
-    if not all(c in orders_df.columns for c in needed):
-        return pd.DataFrame()
-    if "timestamp" not in gps_df.columns:
-        return pd.DataFrame()
+
     conflicts = []
-    first_gps = gps_df.sort_values("timestamp").groupby("order_id").first().reset_index()
-    merged = first_gps.merge(orders_df[needed], on="order_id", how="inner")
-    for _, row in merged.iterrows():
-        try:
-            gps_time    = pd.to_datetime(f"{row['date']} {row['timestamp']}", errors="coerce")
-            order_start = pd.to_datetime(f"{row['order_date']} {row['start_time']}", errors="coerce")
-            if pd.isna(gps_time) or pd.isna(order_start):
+    MIN_IMPOSSIBLE_SPEED = 400  # كم/ساعة — مستحيل للطرق البرية
+
+    gps_work = gps_df.copy()
+    gps_work["timestamp"] = pd.to_datetime(gps_work["timestamp"], errors="coerce")
+    gps_work = gps_work.dropna(subset=["timestamp", "lat", "lon"])
+
+    for acc_id, group in gps_work.groupby("account_id"):
+        group = group.sort_values("timestamp").reset_index(drop=True)
+        for i in range(1, len(group)):
+            try:
+                prev = group.iloc[i - 1]
+                curr = group.iloc[i]
+                gap_sec = (curr["timestamp"] - prev["timestamp"]).total_seconds()
+                if gap_sec <= 0 or gap_sec > 3600:
+                    continue
+                dist_km = haversine_scalar(
+                    float(prev["lat"]), float(prev["lon"]),
+                    float(curr["lat"]),  float(curr["lon"])
+                )
+                if dist_km < 100:
+                    continue
+                speed = dist_km / (gap_sec / 3600)
+                if speed > MIN_IMPOSSIBLE_SPEED:
+                    conflicts.append({
+                        "account_id":     acc_id,
+                        "order_id":       curr.get("order_id", "-"),
+                        "conflict_type":  "قفزة جغرافية مستحيلة في GPS",
+                        "conflict_score": min(60, round(speed / MIN_IMPOSSIBLE_SPEED * 40 + 20, 1)),
+                        "gap_sec":        round(gap_sec, 0),
+                        "dist_km":        round(dist_km, 2),
+                        "speed_kmh":      round(speed, 1),
+                        "evidence": (
+                            f"نقطتا GPS لـ {acc_id} بينهما {dist_km:.0f} كم "
+                            f"في {gap_sec:.0f} ثانية فقط (سرعة {speed:.0f} كم/ساعة)"
+                        ),
+                    })
+            except Exception:
                 continue
-            gap_sec = abs((gps_time - order_start).total_seconds())
-            if gap_sec > 1800:
-                continue
-            dist_km = haversine_scalar(
-                float(row["pickup_lat"]), float(row["pickup_lon"]),
-                float(row["lat"]), float(row["lon"])
-            )
-            speed = dist_km / (gap_sec / 3600) if gap_sec > 0 else 0
-            if speed > 150:
-                conflicts.append({
-                    "account_id":    row["account_id"],
-                    "order_id":      row["order_id"],
-                    "conflict_type": "قفزة جغرافية مستحيلة في GPS",
-                    "conflict_score": min(60, round(speed / 150 * 40, 1)),
-                    "gap_sec":       round(gap_sec, 0),
-                    "dist_km":       round(dist_km, 2),
-                    "speed_kmh":     round(speed, 1),
-                    "evidence": (
-                        f"أول نقطة GPS تبعد {dist_km:.1f} كم عن موقع الاستلام "
-                        f"في {gap_sec:.0f} ثانية (سرعة {speed:.0f} كم/ساعة)"
-                    ),
-                })
-        except Exception:
-            continue
+
     return pd.DataFrame(conflicts) if conflicts else pd.DataFrame()
 
 

@@ -168,6 +168,14 @@ st.set_page_config(
 # ─────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
+[data-testid="stFileUploader"] button {
+    font-size: 0 !important;
+}
+
+[data-testid="stFileUploader"] button::after {
+    content: "اختر ملف";
+    font-size: 14px;
+}
 /* ── استيراد الخط ── */
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap');
 

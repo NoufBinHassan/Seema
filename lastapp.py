@@ -1179,21 +1179,31 @@ st.sidebar.markdown("""
 
 st.sidebar.markdown("### 📁 رفع البيانات")
 
+st.sidebar.markdown("📊 ملف المنصة — من Uber/Careem (Excel)")
 uploaded_platform = st.sidebar.file_uploader(
-    "📊 ملف المنصة — من Uber/Careem (Excel)",
+    "",
     type=["xlsx"],
     help="seema_comprehensive_activity_data.xlsx — يحتوي 3 أوراق"
 )
+
+st.sidebar.markdown("✈️ تذاكر الطيران — من GACA (Excel)")
 uploaded_flights = st.sidebar.file_uploader(
-    "✈️ تذاكر الطيران — من GACA (Excel)", type=["xlsx"],
+    "",
+    type=["xlsx"],
     help="flight_data.xlsx"
 )
+
+st.sidebar.markdown("📱 تقييمات الرحلات — من Uber/Careem (Excel)")
 uploaded_reviews = st.sidebar.file_uploader(
-    "📱 تقييمات الرحلات — من Uber/Careem (Excel)", type=["xlsx"],
+    "",
+    type=["xlsx"],
     help="review_data.xlsx"
 )
+
+st.sidebar.markdown("🗺️ مسارات GPS — من Strava/OSM (Excel)")
 uploaded_gps = st.sidebar.file_uploader(
-    "🗺️ مسارات GPS — من Strava/OSM (Excel)", type=["xlsx"],
+    "",
+    type=["xlsx"],
     help="gps_data.xlsx"
 )
 

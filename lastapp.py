@@ -1189,7 +1189,7 @@ uploaded_flights = st.sidebar.file_uploader(
     help="flight_data.xlsx"
 )
 uploaded_reviews = st.sidebar.file_uploader(
-    "📱 تقييمات التطبيقات — من Google Maps (Excel)", type=["xlsx"],
+    "📱 تقييمات الرحلات — من Uber/Careem (Excel)", type=["xlsx"],
     help="review_data.xlsx"
 )
 uploaded_gps = st.sidebar.file_uploader(
